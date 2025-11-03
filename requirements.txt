@@ -1,0 +1,5 @@
+huggingface-hub==0.34.4
+huggingface-sb3==3.0
+transformers
+sentencepiece
+torch

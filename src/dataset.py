@@ -1,58 +1,51 @@
-from typing import Optional, Union
-import os
-from datasets import load_dataset
-from dotenv import load_dotenv
-
-# /home/shirsho/projects/graph_construction/src/dataset.py
-"""
-Utility to get datasets from the Hugging Face Hub using the `datasets` library.
-
-"""
-
-load_dotenv()  # Load environment variables from .env file if present
+from torch.utils.data import Dataset
+import json
 
 
-def get_dataset(
-    dataset: str = "web_nlg",
-):
-    """
-    Get a dataset from the Hugging Face Hub.
+class TextDataset(Dataset):
+    def __init__(self, data_path, encoder):
+        with open(data_path, "r") as f:
+            self.data = f.readlines()
+        self.encoder = encoder
 
-    Args:
-        dataset (str): The dataset identifier in the format "dataset_name/config_name".
-                       Defaults to "web_nlg".
+    def __len__(self):
+        return len(self.data)
 
-    Returns:
-        Loaded Dataset or DatasetDict.
-    """
-    if dataset == "web_nlg":
-        if not os.path.exists(os.getenv("DATASET_CACHE_DIR", "./data")):
-            os.makedirs(
-                os.path.join(os.getenv("DATASET_CACHE_DIR", "./data"), "web_nlg")
-            )
-        return load_dataset(
-            "GEM/web_nlg",
-            "en",
-            cache_dir=os.path.join(os.getenv("DATASET_CACHE_DIR", "./data"), "web_nlg"),
+    def __getitem__(self, idx):
+        return self.encode(self.data[idx])
+
+    def encode(self, text):
+        return self.encoder(text)
+
+
+class JSONDataset(Dataset):
+    def __init__(self, data_path, tokenizer, max_length=512):
+        with open(data_path, "r") as f:
+            self.data = json.load(f)
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.encode(self.data[idx])
+
+    def encode(self, text):
+        return self.tokenizer(
+            text, max_length=self.max_length, truncation=True, padding=True
         )
-
-    elif dataset == "wiki_nre":
-        if not os.path.exists(
-            os.path.join(os.getenv("DATASET_CACHE_DIR", "./data"), "wiki_nre")
-        ):
-            os.makedirs(
-                os.path.join(os.getenv("DATASET_CACHE_DIR", "./data"), "wiki_nre")
-            )
-        return load_dataset(
-            "Saibo-creator/wiki-nre",
-            cache_dir=os.path.join(
-                os.getenv("DATASET_CACHE_DIR", "./data"), "wiki_nre"
-            ),
-        )
-    else:
-        raise ValueError(f"Dataset '{dataset}' is not supported.")
 
 
 if __name__ == "__main__":
-    ds = get_dataset("wiki_nre")
-    print(ds)
+    from encoder import Encoder
+    from config import BASE_ENCODER_MODEL, EXAMPLE_DATA_PATH_TEXT
+
+    encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
+    dataset = TextDataset(
+        data_path=EXAMPLE_DATA_PATH_TEXT,
+        encoder=encoder,
+    )
+    for i in range(len(dataset)):
+        encoded = dataset[i]
+        print(encoded)
