@@ -2,7 +2,7 @@ from typing import Dict, List, Union
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 import logging
-from config import MISTRAL_MAX_LENGTH, MODEL_CACHE_DIR, BASE_ENCODER_MODEL
+from config import MISTRAL_MAX_LENGTH, MODEL_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class Encoder:
 
     def _generate_completion_transformers(
         self, text: List[Dict[str, str]], max_length: int = 512, answer_prefix: str = ""
-    ) -> torch.Tensor:
+    ) -> List[str]:
         messages = (
             self.tokenizer.apply_chat_template(
                 text, add_generation_prompt=True, tokenize=False
@@ -69,7 +69,7 @@ class Encoder:
 
     def _generate_completion_openai(
         self, text: List[Dict[str, str]], max_length: int = 512, answer_prefix: str = ""
-    ) -> torch.Tensor:
+    ) -> List[str]:
         raise NotImplementedError(
             "OpenAI generation is not implemented in this encoder."
         )
@@ -80,7 +80,7 @@ class Encoder:
         max_length: int = 512,
         answer_prefix: str = "",
         framework: str = "transformers",
-    ) -> torch.Tensor:
+    ) -> List[str]:
         if framework == "transformers":
             return self._generate_completion_transformers(
                 text, max_length, answer_prefix
@@ -101,6 +101,8 @@ class Encoder:
 
 
 if __name__ == "__main__":
+    from config import BASE_ENCODER_MODEL
+
     encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
     text = [{"role": "user", "content": "How are you doing?"}]
     embeddings = encoder.encode(text[0]["content"])
