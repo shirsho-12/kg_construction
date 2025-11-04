@@ -1,6 +1,11 @@
 import ast
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
+from config import LOGGING_LEVEL
 from encoder import Encoder
+from logging import Logger
+
+logger = Logger(__name__)
+logger.setLevel(LOGGING_LEVEL)
 
 
 class Extractor:
@@ -25,27 +30,56 @@ class Extractor:
             }
         )
         messages = [{"role": "user", "content": filled_prompt}]
+        logger.debug("Filled prompt: %s", filled_prompt)
         completion = self.encoder.generate_completion(
             messages, answer_prefix="Triplets: "
         )
+        logger.debug("Completion received: %s", completion)
         return self.parse_triplets(completion[0])
+
+    def batch_extract(
+        self,
+        input_texts: List[str],
+        prompt_template: str,
+        few_shot_examples: Optional[str] = None,
+        entities_hint: Optional[str] = None,
+        relations_hint: Optional[str] = None,
+    ) -> List[List[Tuple[str]]]:
+
+        all_filled_prompts = [
+            prompt_template.format_map(
+                {
+                    "input_text": input_text,
+                    "few_shot_examples": few_shot_examples or "",
+                    "entities_hint": entities_hint or "",
+                    "relations_hint": relations_hint or "",
+                }
+            )
+            for input_text in input_texts
+        ]
+        all_messages = [
+            [{"role": "user", "content": filled_prompt}]
+            for filled_prompt in all_filled_prompts
+        ]
+        logger.debug("All messages prepared for batch extraction: %s", all_messages)
+        # TODO: Test
+        completions = list(
+            self.encoder.generate_completion(message, answer_prefix="Triplets: ")
+            for message in all_messages
+        )
+        logger.debug("Completions received for batch extraction: %s", completions)
+        return [self.parse_triplets(completion[0]) for completion in completions]
 
     def parse_triplets(self, raw_triplets: str) -> List[Tuple[str]]:
         # Look for enclosing brackets
         u_stack = []
-        # remove all '[' and ']' characters
-        raw_triplets = (
-            raw_triplets.replace("\n", " ")
-            .replace(" ", "")
-            .replace("[", "")
-            .replace("]", "")
-        )
+        raw_triplets = raw_triplets.replace("\n", " ").replace(" ", "")
 
         collected_triples = []
         for c_idx, c in enumerate(raw_triplets):
-            if c == "(":
+            if c == "[":
                 u_stack.append(c_idx)
-            if c == ")":
+            if c == "]":
                 if len(u_stack) == 0:
                     continue
                 # NOTE: Assuming no nested brackets
@@ -67,8 +101,28 @@ class Extractor:
                                 parsed_triple[e_idx] = ", ".join(e)
                         collected_triples.append(parsed_triple)
                 except Exception as e:
-                    pass
+                    logger.error("Error parsing triplet: %s", e)
+                    continue
+                finally:
+                    u_stack.clear()
+        logger.debug("Collected triplets: %s", collected_triples)
         return collected_triples
+
+    def __call__(
+        self,
+        input_text: Union[str, List[str]],
+        prompt_template: str,
+        few_shot_examples: Optional[str] = None,
+    ) -> Union[List[Tuple[str]], List[List[Tuple[str]]]]:
+        if isinstance(input_text, list):
+            logger.debug("Running batch extraction for input texts.")
+            return self.batch_extract(
+                input_text, prompt_template, few_shot_examples=few_shot_examples
+            )
+        logger.debug("Running single extraction for input text.")
+        return self.extract(
+            input_text, prompt_template, few_shot_examples=few_shot_examples
+        )
 
 
 if __name__ == "__main__":
@@ -78,7 +132,7 @@ if __name__ == "__main__":
     extractor = Extractor(encoder=encoder)
     extraction_prompt = (
         "Extract all triplets from the following text. Only output the triples. Do not produce any additional text.\n"
-        "Output should be of the form [(entity1, relation, entity2), ...]\n"
+        "Output should be of the form [[entity1, relation, entity2], ...]\n"
         "Text: {input_text}\n"
         "Triplets:"
     )

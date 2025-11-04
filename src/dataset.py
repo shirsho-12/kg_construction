@@ -12,7 +12,7 @@ class TextDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return self.encode(self.data[idx])
+        return self.data[idx]
 
     def encode(self, text):
         return self.encoder(text)

@@ -8,13 +8,17 @@ logger = logging.getLogger(__name__)
 
 
 class Encoder:
-    def __init__(self, model_name_or_path: str, device: str = "cuda:0"):
-        self.device = device
+    def __init__(self, model_name_or_path: str, device: str = ""):
+        self.device = (
+            device
+            if device
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name_or_path, device_map="auto", cache_dir=MODEL_CACHE_DIR
+            model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
         )
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path, device_map="auto", cache_dir=MODEL_CACHE_DIR
+            model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
