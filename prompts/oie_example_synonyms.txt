@@ -1,0 +1,15 @@
+Example 1:
+Text: The location of Trane is Swords, Dublin.
+Triplets: [['Trane', 'located_in', 'lies_in', 'situated_in', 'Swords,_Dublin']]
+
+Example 2:
+Text: The 17068.8 millimeter long ALCO RS-3 has a diesel-electric transmission.
+Triplets: [['ALCO_RS-3', 'powered_by', 'uses_power_source', 'propels_with', 'Diesel-electric_transmission'], ['ALCO_RS-3', 'measures_length', 'has_length', 'length_of', '17068.8_(millimetres)']]
+
+Example 3:
+Text: Alan B. Miller Hall, in Virginia, USA, was designed by Robert A.M. Stern. The address of the hall is "101 Ukrop Way" and the current tenants are the Mason School of Business.
+Triplets: [['Alan_B._Miller_Hall', 'designed_by', 'created_by', 'Robert_A._M._Stern'], ['Alan_B._Miller_Hall', 'has_address', 'located_at', 'addressed_as', '"101 Ukrop Way"'], ['Alan_B._Miller_Hall', 'tenanted_by', 'occupied_by', 'houses', 'Mason_School_of_Business'], ['Alan_B._Miller_Hall', 'is_in', 'located_in', 'lies_in', 'Virginia'], ['Mason_School_of_Business', 'based_in', 'located_in', 'in_country', 'United_States']]
+
+Example 4:
+Text: Liselotte Grschebina was born in Karlsruhe and died in Israel. Ethnic groups in Israel include Arabs.
+Triplets: [['Liselotte_Grschebina', 'born_in', 'originates_from', 'born_in', 'Karlsruhe'], ['Liselotte_Grschebina', 'died_in', 'passed_away_in', 'has_death_place', 'Israel'], ['Israel', 'has_ethnic_group', 'home_to', 'contains_ethnic_group', 'Arab_citizens_of_Israel']]

@@ -1,11 +1,13 @@
 import ast
+import nltk
+from collections import defaultdict
 from typing import List, Optional, Tuple, Union
 from config import LOGGING_LEVEL
 from encoder import Encoder
-from logging import Logger
+import logging
 
-logger = Logger(__name__)
-logger.setLevel(LOGGING_LEVEL)
+logging.basicConfig(level=LOGGING_LEVEL)
+logger = logging.getLogger(__name__)
 
 
 class Extractor:
@@ -19,6 +21,7 @@ class Extractor:
         few_shot_examples: Optional[str] = None,
         entities_hint: Optional[str] = None,
         relations_hint: Optional[str] = None,
+        synonyms: bool = False,
     ) -> List[Tuple[str]]:
 
         filled_prompt = prompt_template.format_map(
@@ -35,7 +38,56 @@ class Extractor:
             messages, answer_prefix="Triplets: "
         )
         logger.debug("Completion received: %s", completion)
-        return self.parse_triplets(completion[0])
+        return self.parse_triplets(completion[0], synonyms=synonyms)
+
+    def extract_with_synonyms(
+        self,
+        input_text: str,
+        prompt_template: str,
+        few_shot_examples: Optional[str] = None,
+        return_synonyms: bool = True,
+    ) -> Union[List[Tuple[str]], Tuple[List[Tuple[str]], defaultdict]]:
+        extracted_triplets = self.extract(
+            input_text,
+            prompt_template,
+            few_shot_examples=few_shot_examples,
+            synonyms=True,
+        )
+        logger.debug("Extracted triplets: %s", extracted_triplets)
+        grouped_relations = defaultdict(list)
+        if len(extracted_triplets) == 0:
+            return []
+        for triple in extracted_triplets:
+            if len(triple) < 3:
+                print(triple)
+                continue
+            head, tail = triple[0], triple[-1]
+            for middle in triple[1:-1]:  # type: ignore
+                grouped_relations[(head, tail)].append(middle)
+        final_triplets = []
+        for (s, o), relations in grouped_relations.items():
+            if not relations:
+                continue
+
+            best_relation = max(relations, key=self._score_relation)
+            final_triplets.append([s, best_relation, o])
+
+        if return_synonyms:
+            return final_triplets, grouped_relations
+        return final_triplets
+
+    def _score_relation(self, relation: str) -> float:
+        # Penalty for length
+        relation = relation.replace("_", " ")
+        length_penalty = 1.0 / len(relation.split())
+
+        # Prioritize verbs and expressive words
+        pos_tags = nltk.pos_tag(nltk.word_tokenize(relation))
+        verb_score = sum(1 for _, tag in pos_tags if tag.startswith("VB"))
+
+        # Combine scores
+        score = length_penalty + verb_score
+        return score
 
     def batch_extract(
         self,
@@ -47,7 +99,7 @@ class Extractor:
     ) -> List[List[Tuple[str]]]:
         raise NotImplementedError("Batch extraction is not implemented yet.")
 
-    def parse_triplets(self, raw_triplets: str) -> List[Tuple[str]]:
+    def parse_triplets(self, raw_triplets: str, synonyms=False) -> List[Tuple[str]]:
         # Look for enclosing brackets
         u_stack = []
         raw_triplets = raw_triplets.replace("\n", " ").replace(" ", "")
@@ -77,6 +129,17 @@ class Extractor:
                             if isinstance(e, list):
                                 parsed_triple[e_idx] = ", ".join(e)
                         collected_triples.append(parsed_triple)
+                    elif (
+                        synonyms
+                        and len(parsed_triple) > 3
+                        and all([isinstance(t, str) for t in parsed_triple])
+                    ):
+                        head, tail = parsed_triple[0], parsed_triple[-1]
+                        for middle in parsed_triple[1:-1]:
+                            collected_triples.append([head, middle, tail])
+                        logger.debug(
+                            "Collected synonym triplet: %s", [head, middle, tail]
+                        )
                 except Exception as e:
                     logger.error("Error parsing triplet: %s", e)
                     continue
