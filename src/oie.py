@@ -3,7 +3,7 @@ from config import (
     BASE_ENCODER_MODEL,
     LOGGING_LEVEL,
     OIE_FEW_SHOT_EXAMPLES_PATH,
-    OIE_TEMPLATE_PATH,
+    OIE_PROMPT_PATH,
 )
 from encoder import Encoder
 from extractor import Extractor
@@ -41,12 +41,13 @@ class OIE:
         oie_triplets = []
         for i, batch in enumerate(dataloader):
             logger.debug(f"Processing batch {i}: {batch}")
-            oie_triplet = self.extractor(
-                input_text=batch,
-                prompt_template=self.prompt_template,
-                few_shot_examples=self.few_shot_examples,
-            )
-            oie_triplets.extend(oie_triplet)
+            for b in batch:
+                oie_triplet = self.extractor(
+                    input_text=b,
+                    prompt_template=self.prompt_template,
+                    few_shot_examples=self.few_shot_examples,
+                )
+                oie_triplets.append(oie_triplet)
         return oie_triplets
 
 
@@ -56,7 +57,7 @@ if __name__ == "__main__":
     from config import EXAMPLE_DATA_PATH_TEXT
 
     oie = OIE(
-        prompt_template_file=OIE_TEMPLATE_PATH,
+        prompt_template_file=OIE_PROMPT_PATH,
         few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
     )
     dataset = TextDataset(

@@ -45,30 +45,7 @@ class Extractor:
         entities_hint: Optional[str] = None,
         relations_hint: Optional[str] = None,
     ) -> List[List[Tuple[str]]]:
-
-        all_filled_prompts = [
-            prompt_template.format_map(
-                {
-                    "input_text": input_text,
-                    "few_shot_examples": few_shot_examples or "",
-                    "entities_hint": entities_hint or "",
-                    "relations_hint": relations_hint or "",
-                }
-            )
-            for input_text in input_texts
-        ]
-        all_messages = [
-            [{"role": "user", "content": filled_prompt}]
-            for filled_prompt in all_filled_prompts
-        ]
-        logger.debug("All messages prepared for batch extraction: %s", all_messages)
-        # TODO: Test
-        completions = list(
-            self.encoder.generate_completion(message, answer_prefix="Triplets: ")
-            for message in all_messages
-        )
-        logger.debug("Completions received for batch extraction: %s", completions)
-        return [self.parse_triplets(completion[0]) for completion in completions]
+        raise NotImplementedError("Batch extraction is not implemented yet.")
 
     def parse_triplets(self, raw_triplets: str) -> List[Tuple[str]]:
         # Look for enclosing brackets
