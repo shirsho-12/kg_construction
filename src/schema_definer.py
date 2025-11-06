@@ -83,6 +83,9 @@ class SchemaDefiner:
         if not schema:
             logger.warning("Empty schema provided; skipping compression.")
             return {}
+        if len(schema) == 1:
+            logger.info("Only one relation type; skipping compression.")
+            return schema
         relations = list(schema.keys())
         definitions = list(schema.values())
         embeddings = self.model.encode(definitions).cpu().numpy()
@@ -147,7 +150,11 @@ class SchemaDefiner:
         import json
 
         results = []
-        for subj, rel, obj in oie_triplets:
+        for triplet in oie_triplets:
+            if len(triplet) != 3:
+                logger.warning("Skipping malformed triplet: %s", triplet)
+                continue
+            subj, rel, obj = triplet
             results.append({"subject": subj, "relation": rel, "object": obj})
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)

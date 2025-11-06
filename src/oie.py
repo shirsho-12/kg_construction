@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from logging import Logger
 from pathlib import Path
 import logging
+from tqdm import tqdm
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ class OIE:
 
     def _run_base(self, dataloader: DataLoader):
         oie_triplets = []
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader, desc="Extracting OIE triplets")):
             logger.debug(f"Processing batch {i}: {batch}")
             for b in batch:
                 oie_triplet = self.extractor(
@@ -63,7 +64,7 @@ class OIE:
     def _run_with_synonyms(self, dataloader: DataLoader):
         oie_triplets = []
         oie_synonyms = []
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader, desc="Extracting OIE with synonyms")):
             logger.debug(f"Processing batch {i}: {batch}")
             for b in batch:
                 oie_triplet, oie_synonym = self.extractor.extract_with_synonyms(

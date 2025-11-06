@@ -11,6 +11,7 @@ End-to-end pipeline:
 from pathlib import Path
 from typing import List, Tuple, Dict
 import logging
+from tqdm import tqdm
 
 from config import (
     BASE_ENCODER_MODEL,
@@ -68,8 +69,8 @@ def run_pipeline(
     dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
 
     all_triplets: List[Tuple[str, str, str]] = []
-    for batch_idx, batch in enumerate(dataloader):
-        logger.info(f"Processing batch {batch_idx}")
+    for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
+        logger.debug(f"Processing batch {batch_idx}")
         for text in batch:
             # 1) OIE extraction with synonyms
             if use_synonyms:
