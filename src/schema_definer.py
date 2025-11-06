@@ -7,6 +7,9 @@ from config import LOGGING_LEVEL
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
 from encoder import Encoder
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
+import numpy as np
 
 
 class SchemaDefiner:
@@ -64,6 +67,56 @@ class SchemaDefiner:
             schema_dct[relation] = definition
         return schema_dct
 
+    def compress_schema(self, schema: dict, threshold=0.8, method="agglomerative"):
+        relations = list(schema.keys())
+        definitions = list(schema.values())
+        embeddings = self.model.encode(definitions).cpu().numpy()
+        logger.debug("Embeddings for schema definitions: %s", embeddings)
+        if method == "agglomerative":
+            return self._agglomerative_compress(
+                relations, definitions, embeddings, threshold
+            )
+        elif method == "hdbscan":
+            return self._hdbscan_compress(relations, definitions, embeddings)
+        else:
+            raise ValueError(f"Unknown compression method: {method}")
+
+    def _agglomerative_compress(self, relations, definitions, embeddings, threshold):
+
+        clusterer = AgglomerativeClustering(
+            n_clusters=None,
+            metric="cosine",
+            linkage="average",
+            distance_threshold=threshold,
+        )
+        cluster_labels = clusterer.fit_predict(embeddings)
+        compressed_schema = {}
+        for cluster_id in set(cluster_labels):
+            cluster_indices = np.where(cluster_labels == cluster_id)[0]
+            if len(cluster_indices) == 0:
+                continue
+            representative_idx = cluster_indices[0]
+            representative_relation = relations[representative_idx]
+            representative_definition = definitions[representative_idx]
+            compressed_schema[representative_relation] = representative_definition
+        return compressed_schema
+
+    def _hdbscan_compress(self, relations, definitions, embeddings):
+        clusterer = HDBSCAN(
+            min_cluster_size=2, metric="cosine", allow_single_cluster=True
+        )
+        cluster_labels = clusterer.fit_predict(embeddings)
+        compressed_schema = {}
+        for cluster_id in set(cluster_labels):
+            cluster_indices = np.where(cluster_labels == cluster_id)[0]
+            if len(cluster_indices) == 0:
+                continue
+            representative_idx = cluster_indices[0]
+            representative_relation = relations[representative_idx]
+            representative_definition = definitions[representative_idx]
+            compressed_schema[representative_relation] = representative_definition
+        return compressed_schema
+
 
 if __name__ == "__main__":
     from config import SD_PROMPT_PATH, SD_FEW_SHOT_EXAMPLES_PATH, BASE_ENCODER_MODEL
@@ -91,4 +144,14 @@ if __name__ == "__main__":
                 ("Bob", "works_at", "CompanyX"),
             ]
             schema = schema_definer.run(b, [oie_triplets])
-            logger.info(f"Defined schema: {schema}")
+
+            for s in schema:
+                for relation, definition in s.items():
+                    print(f"Relation: {relation}\nDefinition: {definition}\n")
+
+            compressed_schema = schema_definer.compress_schema(schema[0])
+            print(f"Compressed Schema - Agglomerative: {compressed_schema}\n")
+            compressed_schema_hdbscan = schema_definer.compress_schema(
+                schema[0], method="hdbscan"
+            )
+            print(f"Compressed Schema - HDBSCAN: {compressed_schema_hdbscan}\n")

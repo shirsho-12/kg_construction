@@ -94,7 +94,7 @@ class Encoder:
         else:
             raise ValueError(f"Unsupported framework: {framework}")
 
-    def encode(self, text: str, model_type: str = "mistral") -> torch.Tensor:
+    def encode(self, text, model_type: str = "mistral") -> torch.Tensor:
         if model_type == "mistral":
             return self._mistral_encode(text)
         else:

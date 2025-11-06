@@ -10,3 +10,5 @@ Automatic KG construction from unstructured text.
 1. Open Information Extraction (OIE)
 2. Schema Definition
 3. Schema Canonicalization
+
+Note: "ministral/Ministral-3b-instruct" does not work for schema definition. Use "mistralai/Mistral-7B-Instruct-v0.2" instead.
