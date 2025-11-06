@@ -67,30 +67,23 @@ def run_pipeline(
     )
 
     dataset = TextDataset(data_path=data_path, encoder=encoder)
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
-
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
     # Run OIE once on the whole dataset (parallelizable)
     all_triplets_per_text = []
-    texts = []
-    for batch in tqdm(dataloader, desc="Extracting OIE triplets"):
-        texts.extend(batch)
 
     # Batch OIE extraction without nested DataLoaders
     if use_synonyms:
-        # Use a single DataLoader for all texts
-        full_dataloader = DataLoader(texts, batch_size=4, shuffle=False)
-        oie_triplets, _ = oie.run(full_dataloader)
+        oie_triplets, _ = oie.run(dataloader)
         # Flatten results
-        for i, text in enumerate(texts):
+        for i, text in enumerate(dataset):
             if i < len(oie_triplets) and oie_triplets[i]:
                 all_triplets_per_text.append((text, oie_triplets[i]))
             else:
                 logger.warning("No triplets extracted for text: %s", text)
                 all_triplets_per_text.append((text, []))
     else:
-        full_dataloader = DataLoader(texts, batch_size=4, shuffle=False)
-        oie_triplets, _ = oie.run(full_dataloader)
-        for i, text in enumerate(texts):
+        oie_triplets, _ = oie.run(dataloader)
+        for i, text in enumerate(dataset):
             if i < len(oie_triplets) and oie_triplets[i]:
                 all_triplets_per_text.append((text, oie_triplets[i]))
             else:
