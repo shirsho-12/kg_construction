@@ -141,7 +141,9 @@ def run_pipeline(
 if __name__ == "__main__":
     run_pipeline(
         data_path=EXAMPLE_DATA_PATH_TEXT,
-        output_dir=Path.cwd() / "output",
+        output_dir=Path.cwd()
+        / "output"
+        / EXAMPLE_DATA_PATH_TEXT.parts[-1].split(".")[0],
         use_synonyms=True,
         compression_method="agglomerative",
         compression_threshold=0.8,

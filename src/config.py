@@ -13,4 +13,6 @@ OIE_FEW_SHOT_EXAMPLES_PATH = Path.cwd() / "prompts/oie_example.txt"
 SD_PROMPT_PATH = Path.cwd() / "prompts/sd_prompt.txt"
 SD_FEW_SHOT_EXAMPLES_PATH = Path.cwd() / "prompts/sd_example.txt"
 
+EXAMPLE_DATA_PATH_JSON = Path.cwd() / "data/json/test.json"
+
 LOGGING_LEVEL = "DEBUG"
