@@ -64,21 +64,29 @@ class OIE:
     def _run_with_synonyms(self, dataloader: DataLoader):
         oie_triplets = []
         oie_synonyms = []
-        for i, batch in enumerate(
-            tqdm(dataloader, desc="Extracting OIE with synonyms")
-        ):
+        for i, batch in enumerate(dataloader):
             logger.debug(f"Processing batch {i}: {batch}")
             for b in batch:
-                oie_triplet, oie_synonym = self.extractor.extract_with_synonyms(
+                result = self.extractor.extract_with_synonyms(
                     input_text=b,
                     prompt_template=self.prompt_template,
                     few_shot_examples=self.few_shot_examples,
                     return_synonyms=True,
                 )
-                logger.debug(f"Extracted triplet: {oie_triplet}")
-                logger.debug(f"Extracted synonyms: {oie_synonym}")
-                oie_synonyms.append(oie_synonym)
-            oie_triplets.extend(oie_triplet)
+                if isinstance(result, tuple) and len(result) == 2:
+                    oie_triplet, oie_synonym = result
+                    logger.debug(f"Extracted triplet: {oie_triplet}")
+                    logger.debug(f"Extracted synonyms: {oie_synonym}")
+                    oie_synonyms.append(oie_synonym)
+                    oie_triplets.extend(oie_triplet if isinstance(oie_triplet, list) else [])
+                elif isinstance(result, list):
+                    # Handle case where only list is returned (no synonyms)
+                    logger.debug("Extracted triplets (no synonyms): %s", result)
+                    oie_triplets.extend(result)
+                    oie_synonyms.append({})
+                else:
+                    logger.warning("Unexpected result from extract_with_synonyms: %s", result)
+                    oie_synonyms.append({})
 
         return oie_triplets, oie_synonyms
 
