@@ -40,6 +40,7 @@ def run_pipeline(
     use_synonyms: bool = True,
     compression_method: str = "agglomerative",
     compression_threshold: float = 0.8,
+    compress_if_more_than: int = 30,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -92,12 +93,22 @@ def run_pipeline(
                 final_triplets = triplets
             else:
                 schema = schema_list[0]
-                # 3) Compression
-                compressed_schema = schema_definer.compress_schema(
-                    schema, method=compression_method, threshold=compression_threshold
-                )
+                # 3) Compression only if relations exceed threshold
+                if len(schema) > compress_if_more_than:
+                    compressed_schema = schema_definer.compress_schema(
+                        schema,
+                        method=compression_method,
+                        threshold=compression_threshold,
+                    )
+                else:
+                    logger.info(
+                        "Schema has %d relations (<= %d); skipping compression.",
+                        len(schema),
+                        compress_if_more_than,
+                    )
+                    compressed_schema = schema
                 # 4) Swap relations to compressed variants
-                if compressed_schema:
+                if compressed_schema and compressed_schema != schema:
                     # Create mapping from original to compressed relations
                     original_to_compressed = {}
                     # Simple heuristic: map by order; can be improved by clustering metadata
@@ -126,4 +137,5 @@ if __name__ == "__main__":
         use_synonyms=True,
         compression_method="agglomerative",
         compression_threshold=0.8,
+        compress_if_more_than=30,
     )

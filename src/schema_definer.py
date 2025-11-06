@@ -74,10 +74,20 @@ class SchemaDefiner:
             colon_idx = desc.index(":")
             relation = desc[:colon_idx].strip()
             definition = desc[colon_idx + 1 :].strip()
+            # Remove numbered prefixes like '1.', '2.' from relation and definition
+            relation = self._strip_numbered_prefix(relation)
+            definition = self._strip_numbered_prefix(definition)
             if relation == "Schema" or not relation:
                 continue
             schema_dct[relation] = definition
         return schema_dct
+
+    def _strip_numbered_prefix(self, text: str) -> str:
+        # Remove patterns like '1.', '2.', '1) ', '2) ', etc. from the start
+        import re
+        text = text.strip()
+        text = re.sub(r'^\d+[\.\)]\s*', '', text)
+        return text
 
     def compress_schema(self, schema: dict, threshold=0.8, method="agglomerative"):
         if not schema:
@@ -139,7 +149,11 @@ class SchemaDefiner:
         self, oie_triplets: list, original_to_compressed_map: dict
     ) -> list:
         swapped_triplets = []
-        for subj, rel, obj in oie_triplets:
+        for triplet in oie_triplets:
+            if len(triplet) != 3:
+                logger.warning("Skipping malformed triplet in swap: %s", triplet)
+                continue
+            subj, rel, obj = triplet
             new_rel = original_to_compressed_map.get(rel, rel)
             swapped_triplets.append((subj, new_rel, obj))
         return swapped_triplets
