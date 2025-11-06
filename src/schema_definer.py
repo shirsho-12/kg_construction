@@ -46,11 +46,23 @@ class SchemaDefiner:
             relations=relations,
             triples=oie_triplets,
         )
+        # Ensure the prompt ends with 'Answer:' to guide generation
+        if not filled_prompt.strip().endswith("Answer:"):
+            filled_prompt = filled_prompt.strip() + "\nAnswer:"
         logger.debug("Filled schema prompt: %s", filled_prompt)
         schema = self.model.generate_completion(
             [{"role": "user", "content": filled_prompt}], answer_prefix="Schema: "
         )
         logger.debug("Schema completion received: %s", schema)
+        if (
+            not schema
+            or not schema[0]
+            or schema[0].strip() in ["", "\n", "Schema:", "Schema:\n"]
+        ):
+            logger.warning(
+                "Schema generation returned empty; using fallback empty schema."
+            )
+            return {}
         return self._parse_schema(schema[0])
 
     def _parse_schema(self, schema_text: str):
@@ -68,6 +80,9 @@ class SchemaDefiner:
         return schema_dct
 
     def compress_schema(self, schema: dict, threshold=0.8, method="agglomerative"):
+        if not schema:
+            logger.warning("Empty schema provided; skipping compression.")
+            return {}
         relations = list(schema.keys())
         definitions = list(schema.values())
         embeddings = self.model.encode(definitions).cpu().numpy()
@@ -117,6 +132,27 @@ class SchemaDefiner:
             compressed_schema[representative_relation] = representative_definition
         return compressed_schema
 
+    def swap_relations_to_compressed(
+        self, oie_triplets: list, original_to_compressed_map: dict
+    ) -> list:
+        swapped_triplets = []
+        for subj, rel, obj in oie_triplets:
+            new_rel = original_to_compressed_map.get(rel, rel)
+            swapped_triplets.append((subj, new_rel, obj))
+        return swapped_triplets
+
+    def save_entities_relations_to_json(
+        self, oie_triplets: list, output_path: Union[str, Path]
+    ):
+        import json
+
+        results = []
+        for subj, rel, obj in oie_triplets:
+            results.append({"subject": subj, "relation": rel, "object": obj})
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        logger.info("Saved %d triples to %s", len(results), output_path)
+
 
 if __name__ == "__main__":
     from config import SD_PROMPT_PATH, SD_FEW_SHOT_EXAMPLES_PATH, BASE_ENCODER_MODEL
@@ -155,3 +191,25 @@ if __name__ == "__main__":
                 schema[0], method="hdbscan"
             )
             print(f"Compressed Schema - HDBSCAN: {compressed_schema_hdbscan}\n")
+
+            # Build map from original to compressed relations (identity fallback if no compression)
+            original_to_compressed = {}
+            if schema[0]:
+                if compressed_schema:
+                    # Simple heuristic: map in order; replace with proper clustering if needed
+                    for orig, comp in zip(schema[0].keys(), compressed_schema.keys()):
+                        original_to_compressed[orig] = comp
+                else:
+                    original_to_compressed = {rel: rel for rel in schema[0].keys()}
+
+            swapped_triplets = schema_definer.swap_relations_to_compressed(
+                oie_triplets, original_to_compressed
+            )
+            print("Swapped triplets:", swapped_triplets)
+
+            # Save to JSON
+            output_path = Path.cwd() / "output" / f"batch_{i}_triplets.json"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            schema_definer.save_entities_relations_to_json(
+                swapped_triplets, output_path
+            )
