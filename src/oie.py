@@ -21,13 +21,12 @@ logger = logging.getLogger(__name__)
 class OIE:
     def __init__(
         self,
-        model_name: str = BASE_ENCODER_MODEL,
+        encoder: Encoder,
         prompt_template_file: Optional[Union[str, Path]] = None,
         few_shot_examples_file: Optional[Union[str, Path]] = None,
         synonymy: bool = False,
     ):
-        self.model_name = model_name
-        self.encoder = Encoder(model_name_or_path=model_name)
+        self.encoder = encoder
         self.extractor = Extractor(
             encoder=self.encoder,
         )
@@ -38,7 +37,7 @@ class OIE:
         if few_shot_examples_file:
             self.few_shot_examples = open(few_shot_examples_file).read()
         self.synonymy = synonymy
-        logger.info("OIE initialized with model: %s", model_name)
+        logger.info("OIE initialized with model: %s", encoder)
         # logger.debug("Prompt template: %s", self.prompt_template)
         # logger.debug("Few-shot examples: %s", self.few_shot_examples)
 
@@ -89,12 +88,14 @@ if __name__ == "__main__":
     synonymy = True
     if synonymy:
         oie = OIE(
+            encoder=Encoder(model_name_or_path=BASE_ENCODER_MODEL),
             prompt_template_file=OIE_SYNONYMY_PROMPT_PATH,
             few_shot_examples_file=OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
             synonymy=True,
         )
     else:
         oie = OIE(
+            encoder=Encoder(model_name_or_path=BASE_ENCODER_MODEL),
             prompt_template_file=OIE_PROMPT_PATH,
             few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
             synonymy=False,

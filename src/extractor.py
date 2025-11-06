@@ -59,7 +59,7 @@ class Extractor:
             return []
         for triple in extracted_triplets:
             if len(triple) < 3:
-                print(triple)
+                logger.debug(triple)
                 continue
             head, tail = triple[0], triple[-1]
             for middle in triple[1:-1]:  # type: ignore

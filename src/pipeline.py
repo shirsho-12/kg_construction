@@ -46,12 +46,14 @@ def run_pipeline(
     encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
     if use_synonyms:
         oie = OIE(
+            encoder=encoder,
             prompt_template_file=OIE_SYNONYMY_PROMPT_PATH,
             few_shot_examples_file=OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
             synonymy=True,
         )
     else:
         oie = OIE(
+            encoder=encoder,
             prompt_template_file=OIE_PROMPT_PATH,
             few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
             synonymy=False,
