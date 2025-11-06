@@ -32,10 +32,21 @@ class Encoder:
                 truncation=True,
                 padding=True,
                 return_tensors="pt",
-                return_attention_mask=False,
+                return_attention_mask=True,
             ).to(self.device)
 
-            embeddings = self.model(**batch_dct)[0].detach().cpu()
+            outputs = self.model(
+                **batch_dct,
+                output_hidden_states=True,
+                return_dict=True,
+            )
+            last_hidden = outputs.hidden_states[-1]  # [batch, seq, hidden]
+            attn = (
+                batch_dct["attention_mask"].unsqueeze(-1).to(last_hidden.dtype)
+            )  # [batch, seq, 1]
+            masked = last_hidden * attn
+            lengths = attn.sum(dim=1).clamp(min=1.0)  # [batch, 1]
+            embeddings = (masked.sum(dim=1) / lengths).detach().cpu()  # [batch, hidden]
 
         return embeddings
 
@@ -65,7 +76,7 @@ class Encoder:
                 **model_inputs,
                 generation_config=generation_config,
             )
-        generated_tokens = generated_outputs["sequences"][:, model_inputs["input_ids"].shape[1] :]  # type: ignore
+        generated_tokens = generated_outputs["sequences"][:, model_inputs["input_ids"].shape[1]   # type: ignore
         generated_text = self.tokenizer.batch_decode(
             generated_tokens, skip_special_tokens=True
         )
