@@ -69,58 +69,73 @@ def run_pipeline(
     dataset = TextDataset(data_path=data_path, encoder=encoder)
     dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
 
-    all_triplets: List[Tuple[str, str, str]] = []
-    for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
-        logger.debug(f"Processing batch {batch_idx}")
-        for text in batch:
-            # 1) OIE extraction with synonyms
-            if use_synonyms:
-                triplets, _ = oie.run(DataLoader([text], batch_size=1))
-                triplets = triplets[0] if triplets else []
-            else:
-                triplets, _ = oie.run(DataLoader([text], batch_size=1))
-                triplets = triplets[0] if triplets else []
+    # Run OIE once on the whole dataset (parallelizable)
+    all_triplets_per_text = []
+    texts = []
+    for batch in tqdm(dataloader, desc="Extracting OIE triplets"):
+        texts.extend(batch)
 
-            if not triplets:
+    # Batch OIE extraction without nested DataLoaders
+    if use_synonyms:
+        # Use a single DataLoader for all texts
+        full_dataloader = DataLoader(texts, batch_size=4, shuffle=False)
+        oie_triplets, _ = oie.run(full_dataloader)
+        # Flatten results
+        for i, text in enumerate(texts):
+            if i < len(oie_triplets) and oie_triplets[i]:
+                all_triplets_per_text.append((text, oie_triplets[i]))
+            else:
                 logger.warning("No triplets extracted for text: %s", text)
-                continue
-
-            # 2) Schema definition
-            schema_list = schema_definer.run(text, [triplets])
-            if not schema_list or not schema_list[0]:
-                logger.warning("Empty schema for text: %s", text)
-                # Use raw relations without compression
-                final_triplets = triplets
+                all_triplets_per_text.append((text, []))
+    else:
+        full_dataloader = DataLoader(texts, batch_size=4, shuffle=False)
+        oie_triplets, _ = oie.run(full_dataloader)
+        for i, text in enumerate(texts):
+            if i < len(oie_triplets) and oie_triplets[i]:
+                all_triplets_per_text.append((text, oie_triplets[i]))
             else:
-                schema = schema_list[0]
-                # 3) Compression only if relations exceed threshold
-                if len(schema) > compress_if_more_than:
-                    compressed_schema = schema_definer.compress_schema(
-                        schema,
-                        method=compression_method,
-                        threshold=compression_threshold,
-                    )
-                else:
-                    logger.info(
-                        "Schema has %d relations (<= %d); skipping compression.",
-                        len(schema),
-                        compress_if_more_than,
-                    )
-                    compressed_schema = schema
-                # 4) Swap relations to compressed variants
-                if compressed_schema and compressed_schema != schema:
-                    # Create mapping from original to compressed relations
-                    original_to_compressed = {}
-                    # Simple heuristic: map by order; can be improved by clustering metadata
-                    for orig, comp in zip(schema.keys(), compressed_schema.keys()):
-                        original_to_compressed[orig] = comp
-                    final_triplets = schema_definer.swap_relations_to_compressed(
-                        triplets, original_to_compressed
-                    )
-                else:
-                    final_triplets = triplets
+                logger.warning("No triplets extracted for text: %s", text)
+                all_triplets_per_text.append((text, []))
 
-            all_triplets.extend(final_triplets)
+    # Process schema generation and compression per text
+    all_triplets: List[Tuple[str, str, str]] = []
+    for text, triplets in tqdm(all_triplets_per_text, desc="Processing schemas"):
+        if not triplets:
+            continue
+
+        # Schema definition
+        schema_list = schema_definer.run(text, [triplets])
+        if not schema_list or not schema_list[0]:
+            logger.warning("Empty schema for text: %s", text)
+            final_triplets = triplets
+        else:
+            schema = schema_list[0]
+            # Compression only if relations exceed threshold
+            if len(schema) > compress_if_more_than:
+                compressed_schema = schema_definer.compress_schema(
+                    schema,
+                    method=compression_method,
+                    threshold=compression_threshold,
+                )
+            else:
+                logger.debug(
+                    "Schema has %d relations (<= %d); skipping compression.",
+                    len(schema),
+                    compress_if_more_than,
+                )
+                compressed_schema = schema
+            # Swap relations to compressed variants
+            if compressed_schema and compressed_schema != schema:
+                original_to_compressed = {}
+                for orig, comp in zip(schema.keys(), compressed_schema.keys()):
+                    original_to_compressed[orig] = comp
+                final_triplets = schema_definer.swap_relations_to_compressed(
+                    triplets, original_to_compressed
+                )
+            else:
+                final_triplets = triplets
+
+        all_triplets.extend(final_triplets)
 
     # 5) Save to JSON
     output_path = output_dir / "triplets.json"
