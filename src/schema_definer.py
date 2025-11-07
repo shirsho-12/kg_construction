@@ -54,18 +54,15 @@ class SchemaDefiner:
             relations=relations,
             triples=oie_triplets,
         )
-        # Ensure the prompt ends with 'Answer:' to guide generation
-        if not filled_prompt.strip().endswith("Answer:"):
-            filled_prompt = filled_prompt.strip() + "\nAnswer:"
         logger.debug("Filled schema prompt: %s", filled_prompt)
         schema = self.model.generate_completion(
-            [{"role": "user", "content": filled_prompt}], answer_prefix="Schema: "
+            [{"role": "user", "content": filled_prompt}], answer_prefix="OUTPUT::"
         )
         logger.debug("Schema completion received: %s", schema)
         if (
             not schema
             or not schema[0]
-            or schema[0].strip() in ["", "\n", "Schema:", "Schema:\n"]
+            or schema[0].strip() in ["", "\n", "OUTPUT::", "OUTPUT::\n"]
         ):
             logger.warning(
                 "Schema generation returned empty; using fallback empty schema."
@@ -203,11 +200,12 @@ class SchemaDefiner:
                 subj, rel, obj = triplet
             if synonyms:
                 syn = synonyms[idx][(subj, obj)]
+                results.append(
+                    {"subject": subj, "relation": rel, "object": obj, "synonym": syn}
+                )
             else:
-                syn = None
-            results.append(
-                {"subject": subj, "relation": rel, "object": obj, "synonym": syn}
-            )
+                results.append({"subject": subj, "relation": rel, "object": obj})
+
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         logger.info("Saved %d triples to %s", len(results), output_path)

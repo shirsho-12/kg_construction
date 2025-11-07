@@ -1,9 +1,28 @@
-You will be given a piece of text and a list of relational triples in the format of [Subject, Relation, Object] extracted from the text. For each relation present in the triples, your task is to write a description to express the meaning of the relation.
+You will be given a piece of text and a list of relational triples in the format of [Subject, Relation, Object] extracted from the text. 
+For each relation present in the triples, your task is to write a description to express the meaning of the relation.
+Explain the relation in context of the text, not just A is inolved with B, but in what way.
+
+The input will be in the form of:
+
+INPUT
+--------
+Text: {text}
+Triples: {triples}
+Relations: {relations}
+
+OUTPUT
+--------
+relation_1: description 
+relation_2: description 
+relation_3: description 
 
 Here are some examples:
 {few_shot_examples}
 
-Now please extract relation descriptions given the following text and triples. Note that the description needs to be general and can be used to describe relations between other entities as well. Pay attention to the order of subject and object entities.
+Now please extract relation descriptions given the following text and triples. 
+Note that the description needs to be general and can be used to describe relations between other entities as well. 
+Pay attention to the order of subject and object entities.
+Do not include additional headers, only explain the relations, and do not add additional keys to the output.
 Text: {text}
 Triples: {triples}
 Relations: {relations}
