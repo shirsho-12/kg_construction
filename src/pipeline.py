@@ -30,6 +30,23 @@ from encoder import Encoder
 from oie import OIE
 from schema_definer import SchemaDefiner
 
+
+def setup_file_logging(output_dir: Path):
+    """Configure file-based error logging with moderate verbosity."""
+    log_file = output_dir / "pipeline_errors.log"
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.WARNING)  # Only warnings and errors
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    file_handler.setFormatter(formatter)
+
+    # Add to root logger so all modules use it
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    logger.info("Error logging enabled: %s", log_file)
+
+
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
 
@@ -43,6 +60,7 @@ def run_pipeline(
     compress_if_more_than: int = 30,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
+    setup_file_logging(output_dir)
 
     # Initialize components
     encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
@@ -96,36 +114,49 @@ def run_pipeline(
         if not triplets:
             continue
 
-        # Schema definition
-        schema_list = schema_definer.run(text, [triplets])
+        try:
+            # Schema definition
+            schema_list = schema_definer.run(text, [triplets])
+        except Exception as e:
+            logger.error(
+                "Schema definition failed for text: %s. Error: %s", text[:100], e
+            )
+            all_triplets.extend(triplets)
+            continue
         if not schema_list or not schema_list[0]:
             logger.warning("Empty schema for text: %s", text)
             final_triplets = triplets
         else:
             schema = schema_list[0]
             # Compression only if relations exceed threshold
-            if len(schema) > compress_if_more_than:
-                compressed_schema = schema_definer.compress_schema(
-                    schema,
-                    method=compression_method,
-                    threshold=compression_threshold,
+            try:
+                if len(schema) > compress_if_more_than:
+                    compressed_schema = schema_definer.compress_schema(
+                        schema,
+                        method=compression_method,
+                        threshold=compression_threshold,
+                    )
+                else:
+                    logger.debug(
+                        "Schema has %d relations (<= %d); skipping compression.",
+                        len(schema),
+                        compress_if_more_than,
+                    )
+                    compressed_schema = schema
+                # Swap relations to compressed variants
+                if compressed_schema and compressed_schema != schema:
+                    original_to_compressed = {}
+                    for orig, comp in zip(schema.keys(), compressed_schema.keys()):
+                        original_to_compressed[orig] = comp
+                    final_triplets = schema_definer.swap_relations_to_compressed(
+                        triplets, original_to_compressed
+                    )
+                else:
+                    final_triplets = triplets
+            except Exception as e:
+                logger.error(
+                    "Schema compression failed for text: %s. Error: %s", text[:100], e
                 )
-            else:
-                logger.debug(
-                    "Schema has %d relations (<= %d); skipping compression.",
-                    len(schema),
-                    compress_if_more_than,
-                )
-                compressed_schema = schema
-            # Swap relations to compressed variants
-            if compressed_schema and compressed_schema != schema:
-                original_to_compressed = {}
-                for orig, comp in zip(schema.keys(), compressed_schema.keys()):
-                    original_to_compressed[orig] = comp
-                final_triplets = schema_definer.swap_relations_to_compressed(
-                    triplets, original_to_compressed
-                )
-            else:
                 final_triplets = triplets
 
         all_triplets.extend(final_triplets)

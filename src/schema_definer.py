@@ -39,7 +39,10 @@ class SchemaDefiner:
     def define_schema(self, input_text: str, oie_triplets: list):
         relations = set()
         for triplet in oie_triplets:
-            relations.add(triplet[1])
+            if isinstance(triplet, (list, tuple)) and len(triplet) >= 2:
+                relations.add(triplet[1])
+            else:
+                logger.warning("Invalid triplet format in define_schema: %s", triplet)
         filled_prompt = self.schema_prompt.format(
             text=input_text,
             few_shot_examples=self.schema_few_shot_examples,
