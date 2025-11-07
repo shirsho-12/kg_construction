@@ -1,15 +1,14 @@
-from typing import Optional, Union
+from typing import Union, List, Optional
 from pathlib import Path
 import logging
-
-from config import LOGGING_LEVEL
-
-logging.basicConfig(level=LOGGING_LEVEL)
-logger = logging.getLogger(__name__)
 from encoder import Encoder
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
 import numpy as np
+from config import LOGGING_LEVEL
+
+logging.basicConfig(level=LOGGING_LEVEL)
+logger = logging.getLogger(__name__)
 
 
 class SchemaDefiner:
@@ -39,8 +38,14 @@ class SchemaDefiner:
     def define_schema(self, input_text: str, oie_triplets: list):
         relations = set()
         for triplet in oie_triplets:
+            if isinstance(triplet, list) and len(triplet) == 1:
+                triplet = triplet[0]
             if isinstance(triplet, (list, tuple)) and len(triplet) >= 2:
                 relations.add(triplet[1])
+            elif isinstance(triplet, str):
+                new_triplet = triplet.split(",")
+                if len(new_triplet) == 3:
+                    relations.add(new_triplet[1])
             else:
                 logger.warning("Invalid triplet format in define_schema: %s", triplet)
         filled_prompt = self.schema_prompt.format(
@@ -88,8 +93,9 @@ class SchemaDefiner:
     def _strip_numbered_prefix(self, text: str) -> str:
         # Remove patterns like '1.', '2.', '1) ', '2) ', etc. from the start
         import re
+
         text = text.strip()
-        text = re.sub(r'^\d+[\.\)]\s*', '', text)
+        text = re.sub(r"^\d+[\.\)]\s*", "", text)
         return text
 
     def compress_schema(self, schema: dict, threshold=0.8, method="agglomerative"):
@@ -153,29 +159,95 @@ class SchemaDefiner:
     ) -> list:
         swapped_triplets = []
         for triplet in oie_triplets:
-            if len(triplet) != 3:
+            if isinstance(triplet, list) and len(triplet) == 1:
+                triplet = triplet[0]
+            if isinstance(triplet, str):
+                new_triplet = triplet.split(",")
+                if len(new_triplet) == 3:
+                    subj, rel, obj = new_triplet
+                else:
+                    logger.warning("Skipping malformed triplet in swap: %s", triplet)
+                    continue
+            elif len(triplet) != 3:
                 logger.warning("Skipping malformed triplet in swap: %s", triplet)
                 continue
-            subj, rel, obj = triplet
+            else:
+                subj, rel, obj = triplet
             new_rel = original_to_compressed_map.get(rel, rel)
             swapped_triplets.append((subj, new_rel, obj))
         return swapped_triplets
 
     def save_entities_relations_to_json(
-        self, oie_triplets: list, output_path: Union[str, Path]
+        self,
+        oie_triplets: list,
+        synonyms: Optional[list],
+        output_path: Union[str, Path],
     ):
         import json
 
         results = []
-        for triplet in oie_triplets:
-            if len(triplet) != 3:
+        for idx, triplet in enumerate(oie_triplets):
+            if isinstance(triplet, (list, tuple)) and len(triplet) == 1:
+                triplet = triplet[0]
+            if isinstance(triplet, str):
+                new_triplet = triplet.split(",")
+                if len(new_triplet) == 3:
+                    subj, rel, obj = new_triplet
+                else:
+                    logger.warning("Skipping malformed triplet: %s", triplet)
+                    continue
+            elif len(triplet) != 3:
                 logger.warning("Skipping malformed triplet: %s", triplet)
                 continue
-            subj, rel, obj = triplet
-            results.append({"subject": subj, "relation": rel, "object": obj})
+            else:
+                subj, rel, obj = triplet
+            if synonyms:
+                syn = synonyms[idx][(subj, obj)]
+            else:
+                syn = None
+            results.append(
+                {"subject": subj, "relation": rel, "object": obj, "synonym": syn}
+            )
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         logger.info("Saved %d triples to %s", len(results), output_path)
+
+    def save_schema_definitions(
+        self, schemas: List[dict], output_path: Union[str, Path]
+    ):
+        """Save schema definitions for each input text."""
+        import json
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(schemas, f, indent=2, ensure_ascii=False)
+        logger.info("Saved %d schema definitions to %s", len(schemas), output_path)
+
+    def save_compression_outcomes(
+        self,
+        original_schemas: List[dict],
+        compressed_schemas: List[dict],
+        compression_method: str,
+        output_path: Union[str, Path],
+    ):
+        """Save compression outcomes showing before/after comparison."""
+        import json
+
+        outcomes = []
+        for i, (orig, comp) in enumerate(zip(original_schemas, compressed_schemas)):
+            outcome = {
+                "input_index": i,
+                "original_relations": list(orig.keys()) if orig else [],
+                "compressed_relations": list(comp.keys()) if comp else [],
+                "original_count": len(orig) if orig else 0,
+                "compressed_count": len(comp) if comp else 0,
+                "compression_ratio": len(comp) / len(orig) if orig and comp else 1.0,
+                "compression_method": compression_method,
+            }
+            outcomes.append(outcome)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(outcomes, f, indent=2, ensure_ascii=False)
+        logger.info("Saved compression outcomes to %s", output_path)
 
 
 if __name__ == "__main__":
@@ -216,11 +288,11 @@ if __name__ == "__main__":
             )
             print(f"Compressed Schema - HDBSCAN: {compressed_schema_hdbscan}\n")
 
-            # Build map from original to compressed relations (identity fallback if no compression)
+            # Build map from original to compressed relations
             original_to_compressed = {}
             if schema[0]:
                 if compressed_schema:
-                    # Simple heuristic: map in order; replace with proper clustering if needed
+                    # Simple heuristic: map in order; replace with proper clustering
                     for orig, comp in zip(schema[0].keys(), compressed_schema.keys()):
                         original_to_compressed[orig] = comp
                 else:
@@ -235,5 +307,5 @@ if __name__ == "__main__":
             output_path = Path.cwd() / "output" / f"batch_{i}_triplets.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             schema_definer.save_entities_relations_to_json(
-                swapped_triplets, output_path
+                swapped_triplets, None, output_path
             )
