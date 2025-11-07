@@ -123,9 +123,9 @@ def run_pipeline(
     data_path: Path,
     output_dir: Path,
     use_synonyms: bool = True,
-    compression_method: str = "agglomerative",
-    compression_threshold: float = 0.8,
-    compress_if_more_than: int = 30,
+    compression_method: str = "hdbscan",
+    compression_threshold: float = 0.6,
+    compress_if_more_than: int = 10,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_file_logging(output_dir)
