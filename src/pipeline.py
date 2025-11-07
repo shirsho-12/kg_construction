@@ -68,14 +68,14 @@ def process_oie_results(
     for i, text in enumerate(dataset):
         if len(oie_triplets) == 3 and isinstance(oie_triplets[0], str):
             head, relation, tail = oie_triplets
-            valid_triplets = [",".join((head, relation, tail))]
+            valid_triplets = ["#SEP".join((head, relation, tail))]
             all_triplets_per_text.append((text, valid_triplets))
         elif oie_triplets and isinstance(oie_triplets[i], (list, tuple)):
             # Check for malformed triplets
             malformed = []
             valid_triplets = []
             if len(oie_triplets[i]) == 3 and isinstance(oie_triplets[i], (list, tuple)):
-                valid_triplets.append(",".join(oie_triplets[i]))
+                valid_triplets.append("#SEP".join(oie_triplets[i]))
                 head, relation, tail = oie_triplets[i]
             else:
                 malformed.append(str(oie_triplets[i]))

@@ -43,7 +43,7 @@ class SchemaDefiner:
             if isinstance(triplet, (list, tuple)) and len(triplet) >= 2:
                 relations.add(triplet[1])
             elif isinstance(triplet, str):
-                new_triplet = triplet.split(",")
+                new_triplet = triplet.split("#SEP")
                 if len(new_triplet) == 3:
                     relations.add(new_triplet[1])
             else:
@@ -162,7 +162,7 @@ class SchemaDefiner:
             if isinstance(triplet, list) and len(triplet) == 1:
                 triplet = triplet[0]
             if isinstance(triplet, str):
-                new_triplet = triplet.split(",")
+                new_triplet = triplet.split("#SEP")
                 if len(new_triplet) == 3:
                     subj, rel, obj = new_triplet
                 else:
@@ -190,7 +190,7 @@ class SchemaDefiner:
             if isinstance(triplet, (list, tuple)) and len(triplet) == 1:
                 triplet = triplet[0]
             if isinstance(triplet, str):
-                new_triplet = triplet.split(",")
+                new_triplet = triplet.split("#SEP")
                 if len(new_triplet) == 3:
                     subj, rel, obj = new_triplet
                 else:
