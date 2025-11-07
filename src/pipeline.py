@@ -30,6 +30,36 @@ from encoder import Encoder
 from oie import OIE
 from schema_definer import SchemaDefiner
 
+
+def setup_file_logging(output_dir: Path):
+    """Configure file-based error logging with moderate verbosity."""
+    log_file = output_dir / "pipeline_errors.log"
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.WARNING)  # Only warnings and errors
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    file_handler.setFormatter(formatter)
+
+    # Add to root logger so all modules use it
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    logger.info("Error logging enabled: %s", log_file)
+
+
+def save_problematic_report(problematic_cases: List[Dict], output_path: Path):
+    """Save a detailed report of problematic inputs and their outputs."""
+    import json
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(problematic_cases, f, indent=2, ensure_ascii=False)
+    logger.info(
+        "Saved problematic cases report: %s (%d cases)",
+        output_path,
+        len(problematic_cases),
+    )
+
+
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
 
@@ -43,6 +73,10 @@ def run_pipeline(
     compress_if_more_than: int = 30,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
+    setup_file_logging(output_dir)
+
+    # Track problematic cases
+    problematic_cases = []
 
     # Initialize components
     encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
@@ -75,19 +109,77 @@ def run_pipeline(
     if use_synonyms:
         oie_triplets, _ = oie.run(dataloader)
         # Flatten results
-        for i, text in enumerate(dataset):
+        texts = [text for text, _ in dataset]
+        for i, text in enumerate(texts):
             if i < len(oie_triplets) and oie_triplets[i]:
-                all_triplets_per_text.append((text, oie_triplets[i]))
+                # Check for malformed triplets
+                malformed = []
+                valid_triplets = []
+                for triplet in oie_triplets[i]:
+                    if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
+                        malformed.append(str(triplet))
+                    else:
+                        valid_triplets.append(triplet)
+
+                if malformed:
+                    problematic_cases.append(
+                        {
+                            "input_text": text,
+                            "issue": "malformed_triplets",
+                            "malformed_triplets": malformed,
+                            "valid_triplets": valid_triplets,
+                        }
+                    )
+
+                all_triplets_per_text.append((text, valid_triplets))
             else:
                 logger.warning("No triplets extracted for text: %s", text)
+                problematic_cases.append(
+                    {
+                        "input_text": text,
+                        "issue": "no_triplets",
+                        "extracted_output": (
+                            oie_triplets[i] if i < len(oie_triplets) else None
+                        ),
+                    }
+                )
                 all_triplets_per_text.append((text, []))
     else:
         oie_triplets, _ = oie.run(dataloader)
-        for i, text in enumerate(dataset):
+        texts = [text for text, _ in dataset]
+        for i, text in enumerate(texts):
             if i < len(oie_triplets) and oie_triplets[i]:
-                all_triplets_per_text.append((text, oie_triplets[i]))
+                # Check for malformed triplets
+                malformed = []
+                valid_triplets = []
+                for triplet in oie_triplets[i]:
+                    if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
+                        malformed.append(str(triplet))
+                    else:
+                        valid_triplets.append(triplet)
+
+                if malformed:
+                    problematic_cases.append(
+                        {
+                            "input_text": text,
+                            "issue": "malformed_triplets",
+                            "malformed_triplets": malformed,
+                            "valid_triplets": valid_triplets,
+                        }
+                    )
+
+                all_triplets_per_text.append((text, valid_triplets))
             else:
                 logger.warning("No triplets extracted for text: %s", text)
+                problematic_cases.append(
+                    {
+                        "input_text": text,
+                        "issue": "no_triplets",
+                        "extracted_output": (
+                            oie_triplets[i] if i < len(oie_triplets) else None
+                        ),
+                    }
+                )
                 all_triplets_per_text.append((text, []))
 
     # Process schema generation and compression per text
@@ -96,36 +188,74 @@ def run_pipeline(
         if not triplets:
             continue
 
-        # Schema definition
-        schema_list = schema_definer.run(text, [triplets])
+        try:
+            # Schema definition
+            schema_list = schema_definer.run(text, [triplets])
+        except Exception as e:
+            logger.error(
+                "Schema definition failed for text: %s. Error: %s", text[:100], e
+            )
+            problematic_cases.append(
+                {
+                    "input_text": text,
+                    "issue": "schema_definition_failed",
+                    "error": str(e),
+                    "triplets": triplets,
+                }
+            )
+            all_triplets.extend(triplets)
+            continue
         if not schema_list or not schema_list[0]:
             logger.warning("Empty schema for text: %s", text)
+            problematic_cases.append(
+                {
+                    "input_text": text,
+                    "issue": "empty_schema",
+                    "triplets": triplets,
+                    "schema_output": schema_list,
+                }
+            )
             final_triplets = triplets
         else:
             schema = schema_list[0]
             # Compression only if relations exceed threshold
-            if len(schema) > compress_if_more_than:
-                compressed_schema = schema_definer.compress_schema(
-                    schema,
-                    method=compression_method,
-                    threshold=compression_threshold,
+            try:
+                if len(schema) > compress_if_more_than:
+                    compressed_schema = schema_definer.compress_schema(
+                        schema,
+                        method=compression_method,
+                        threshold=compression_threshold,
+                    )
+                else:
+                    logger.debug(
+                        "Schema has %d relations (<= %d); skipping compression.",
+                        len(schema),
+                        compress_if_more_than,
+                    )
+                    compressed_schema = schema
+                # Swap relations to compressed variants
+                if compressed_schema and compressed_schema != schema:
+                    original_to_compressed = {}
+                    for orig, comp in zip(schema.keys(), compressed_schema.keys()):
+                        original_to_compressed[orig] = comp
+                    final_triplets = schema_definer.swap_relations_to_compressed(
+                        triplets, original_to_compressed
+                    )
+                else:
+                    final_triplets = triplets
+            except Exception as e:
+                logger.error(
+                    "Schema compression failed for text: %s. Error: %s", text[:100], e
                 )
-            else:
-                logger.debug(
-                    "Schema has %d relations (<= %d); skipping compression.",
-                    len(schema),
-                    compress_if_more_than,
+                problematic_cases.append(
+                    {
+                        "input_text": text,
+                        "issue": "compression_failed",
+                        "error": str(e),
+                        "schema": schema,
+                        "triplets": triplets,
+                    }
                 )
-                compressed_schema = schema
-            # Swap relations to compressed variants
-            if compressed_schema and compressed_schema != schema:
-                original_to_compressed = {}
-                for orig, comp in zip(schema.keys(), compressed_schema.keys()):
-                    original_to_compressed[orig] = comp
-                final_triplets = schema_definer.swap_relations_to_compressed(
-                    triplets, original_to_compressed
-                )
-            else:
                 final_triplets = triplets
 
         all_triplets.extend(final_triplets)
@@ -136,6 +266,13 @@ def run_pipeline(
     logger.info(
         "Pipeline complete. Saved %d triplets to %s", len(all_triplets), output_path
     )
+
+    # 6) Save problematic cases report
+    if problematic_cases:
+        report_path = output_dir / "problematic_cases.json"
+        save_problematic_report(problematic_cases, report_path)
+    else:
+        logger.info("No problematic cases found.")
 
 
 if __name__ == "__main__":
