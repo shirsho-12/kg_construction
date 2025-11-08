@@ -1,4 +1,3 @@
-import ast
 import nltk
 from collections import defaultdict
 from typing import List, Optional, Tuple, Union
@@ -102,7 +101,8 @@ class Extractor:
     def parse_triplets(self, raw_triplets: str, synonyms=False) -> List[Tuple[str]]:
         # Look for enclosing brackets
         u_stack = []
-        raw_triplets = raw_triplets.replace("\n", " ").replace(" ", "")
+        # Keep spaces for parsing, just normalize newlines
+        raw_triplets = raw_triplets.replace("\n", " ")
 
         collected_triples = []
         for c_idx, c in enumerate(raw_triplets):
@@ -114,32 +114,53 @@ class Extractor:
                 # NOTE: Assuming no nested brackets
                 l = u_stack.pop()
                 r = c_idx
-                bracketed_str = raw_triplets[l : r + 1]
+                bracketed_str = raw_triplets[
+                    l + 1 : r
+                ]  # Extract content inside brackets
+
+                # Simple parsing: split by comma and clean quotes
                 try:
-                    parsed_triple = ast.literal_eval(bracketed_str)
-                    if len(parsed_triple) == 3 and all(
-                        [isinstance(t, str) for t in parsed_triple]
-                    ):
-                        if all([e != "" and e != "_" for e in parsed_triple]):
-                            collected_triples.append(parsed_triple)
-                    elif not all(
-                        [type(x) == type(parsed_triple[0]) for x in parsed_triple]
-                    ):
-                        for e_idx, e in enumerate(parsed_triple):
-                            if isinstance(e, list):
-                                parsed_triple[e_idx] = ", ".join(e)
-                        collected_triples.append(parsed_triple)
-                    elif (
-                        synonyms
-                        and len(parsed_triple) > 3
-                        and all([isinstance(t, str) for t in parsed_triple])
-                    ):
-                        head, tail = parsed_triple[0], parsed_triple[-1]
-                        for middle in parsed_triple[1:-1]:
+                    # Split by comma and clean each element
+                    elements = []
+                    current = ""
+                    in_quotes = False
+                    quote_char = None
+
+                    for char in bracketed_str:
+                        if char in ('"', "'") and (not in_quotes or char == quote_char):
+                            in_quotes = not in_quotes
+                            if in_quotes:
+                                quote_char = char
+                            else:
+                                quote_char = None
+                        elif char == "," and not in_quotes:
+                            elements.append(current.strip().strip("\"'"))
+                            current = ""
+                        else:
+                            current += char
+
+                    # Add last element
+                    if current:
+                        elements.append(current.strip().strip("\"'"))
+
+                    # Clean up empty elements
+                    elements = [e for e in elements if e and e.strip()]
+
+                    if len(elements) == 3:
+                        if all(e != "" and e != "_" for e in elements):
+                            collected_triples.append(elements)
+                    elif synonyms and len(elements) > 3:
+                        # Handle synonym case: head, rel1, rel2, ..., tail
+                        head, tail = elements[0], elements[-1]
+                        for middle in elements[1:-1]:
                             collected_triples.append([head, middle, tail])
-                        logger.debug(
-                            "Collected synonym triplet: %s", [head, middle, tail]
-                        )
+                            logger.debug(
+                                "Collected synonym triplet: %s", [head, middle, tail]
+                            )
+                    elif len(elements) > 0:
+                        # Handle malformed but non-empty case
+                        collected_triples.append(elements)
+
                 except Exception as e:
                     logger.error("Error parsing triplet: %s", e)
                     continue
