@@ -166,6 +166,24 @@ def run_pipeline(
     schema_definer.save_entities_relations_to_json(
         all_triplets_per_text, output_dir / "triplets.json"
     )
+    import json
+
+    serializable_synonyms = {}
+    if synonyms:
+        for i, text_synonyms in enumerate(synonyms):
+            if text_synonyms:
+                cleaned: Dict[str, List[str]] = {}
+                for k, v in text_synonyms.items():
+                    key_str = f"{k[0]}#SEP{k[1]}" if isinstance(k, tuple) else str(k)
+                    if isinstance(v, (list, tuple, set)):
+                        unique_vals = sorted(set(v))
+                    else:
+                        unique_vals = [v]
+                    cleaned[key_str] = unique_vals
+                serializable_synonyms[str(i)] = cleaned
+
+    with open(output_dir / "synonyms.json", "w", encoding="utf-8") as f:
+        json.dump(serializable_synonyms, f, indent=2, ensure_ascii=False)
 
     # Collect all triplets and relations for unified schema generation
     all_triplets: List[Tuple[str, str, str]] = []
@@ -275,27 +293,13 @@ def run_pipeline(
 
     # 5) Save original triplets
     original_output_path = output_dir / "triplets.json"
-    schema_definer.save_entities_relations_to_json(
-        all_triplets, original_output_path
-    )
+    schema_definer.save_entities_relations_to_json(all_triplets, original_output_path)
 
     # 6) Save compressed triplets
     compressed_output_path = output_dir / "triplets_compressed.json"
     schema_definer.save_entities_relations_to_json(
         final_compressed_triplets, compressed_output_path
     )
-    import json
-    serializable_synonyms = {}
-    if synonyms:
-        for i, text_synonyms in enumerate(synonyms):        
-            if text_synonyms:
-                serializable_synonyms[str(i)] = {
-                    f"{k[0]}#SEP{k[1]}" if isinstance(k, tuple) else str(k): v 
-                    for k, v in text_synonyms.items()
-                }
-
-    with open(output_dir / "synonyms.json", "w", encoding="utf-8") as f:
-        json.dump(serializable_synonyms, f, indent=2, ensure_ascii=False)
 
     logger.info(
         "Pipeline complete. Saved %d original triplets to %s",
