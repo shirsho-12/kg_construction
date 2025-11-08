@@ -6,6 +6,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
 import numpy as np
 from config import LOGGING_LEVEL
+from tqdm import tqdm
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class SchemaDefiner:
     def run(self, input_text: str, oie_triplets: list):
         logger.debug("Defining schema for input text: %s", input_text)
         schema_definition_dct = []
-        for idx, oie_triplets in enumerate(oie_triplets):
+        for idx, oie_triplets in tqdm(enumerate(oie_triplets), desc="Defining schema"):
             logger.debug("OIE Triplets for input %d: %s", idx, oie_triplets)
             defined_schema = self.define_schema(input_text, oie_triplets)
             schema_definition_dct.append(defined_schema)
@@ -193,12 +194,12 @@ class SchemaDefiner:
                     logger.warning("Skipping malformed triplet: %s", triplet)
                     continue
             elif (
-                    isinstance(triplet, (list, tuple))
-                    and isinstance(triplet[-1], (list,tuple)) 
-                    and isinstance(triplet[-1][0], str)
-                    and "#SEP" in triplet[-1][0]
-                ):
-                    subj, rel, obj = triplet[-1][0].split("#SEP")
+                isinstance(triplet, (list, tuple))
+                and isinstance(triplet[-1], (list, tuple))
+                and isinstance(triplet[-1][0], str)
+                and "#SEP" in triplet[-1][0]
+            ):
+                subj, rel, obj = triplet[-1][0].split("#SEP")
             elif len(triplet) != 3:
                 logger.warning("Skipping malformed triplet: %s", triplet)
                 continue
