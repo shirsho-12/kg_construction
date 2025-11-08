@@ -64,7 +64,7 @@ class OIE:
     def _run_with_synonyms(self, dataloader: DataLoader):
         oie_triplets = []
         oie_synonyms = []
-        for i, batch in enumerate(dataloader):
+        for i, batch in enumerate(tqdm(dataloader, desc="Extracting OIE triplets")):
             logger.debug(f"Processing batch {i}: {batch}")
             for b in batch:
                 result = self.extractor.extract_with_synonyms(

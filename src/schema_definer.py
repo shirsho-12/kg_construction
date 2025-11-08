@@ -177,7 +177,6 @@ class SchemaDefiner:
     def save_entities_relations_to_json(
         self,
         oie_triplets: list,
-        synonyms: Optional[list],
         output_path: Union[str, Path],
     ):
         import json
@@ -193,18 +192,19 @@ class SchemaDefiner:
                 else:
                     logger.warning("Skipping malformed triplet: %s", triplet)
                     continue
+            elif (
+                    isinstance(triplet, (list, tuple))
+                    and isinstance(triplet[-1], (list,tuple)) 
+                    and isinstance(triplet[-1][0], str)
+                    and "#SEP" in triplet[-1][0]
+                ):
+                    subj, rel, obj = triplet[-1][0].split("#SEP")
             elif len(triplet) != 3:
                 logger.warning("Skipping malformed triplet: %s", triplet)
                 continue
             else:
                 subj, rel, obj = triplet
-            if synonyms:
-                syn = synonyms[idx][(subj, obj)]
-                results.append(
-                    {"subject": subj, "relation": rel, "object": obj, "synonym": syn}
-                )
-            else:
-                results.append({"subject": subj, "relation": rel, "object": obj})
+            results.append({"subject": subj, "relation": rel, "object": obj})
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)

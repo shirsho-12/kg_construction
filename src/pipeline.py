@@ -164,7 +164,7 @@ def run_pipeline(
         oie_triplets, dataset, problematic_cases
     )
     schema_definer.save_entities_relations_to_json(
-        all_triplets_per_text, synonyms, output_dir / "triplets.json"
+        all_triplets_per_text, output_dir / "triplets.json"
     )
 
     # Collect all triplets and relations for unified schema generation
@@ -276,14 +276,27 @@ def run_pipeline(
     # 5) Save original triplets
     original_output_path = output_dir / "triplets.json"
     schema_definer.save_entities_relations_to_json(
-        all_triplets, synonyms, original_output_path
+        all_triplets, original_output_path
     )
 
     # 6) Save compressed triplets
     compressed_output_path = output_dir / "triplets_compressed.json"
     schema_definer.save_entities_relations_to_json(
-        final_compressed_triplets, None, compressed_output_path
+        final_compressed_triplets, compressed_output_path
     )
+    import json
+    serializable_synonyms = {}
+    if synonyms:
+        for i, text_synonyms in enumerate(synonyms):        
+            if text_synonyms:
+                serializable_synonyms[str(i)] = {
+                    f"{k[0]}#SEP{k[1]}" if isinstance(k, tuple) else str(k): v 
+                    for k, v in text_synonyms.items()
+                }
+
+    with open(output_dir / "synonyms.json", "w", encoding="utf-8") as f:
+        json.dump(serializable_synonyms, f, indent=2, ensure_ascii=False)
+
     logger.info(
         "Pipeline complete. Saved %d original triplets to %s",
         len(all_triplets),
