@@ -253,7 +253,7 @@ if __name__ == "__main__":
     from config import SD_PROMPT_PATH, SD_FEW_SHOT_EXAMPLES_PATH, BASE_ENCODER_MODEL
     from dataset import TextDataset
     from torch.utils.data import DataLoader
-    from config import EXAMPLE_DATA_PATH_TEXT
+    from config import EXAMPLE_DATA_PATH_JSON
 
     model = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
     schema_definer = SchemaDefiner(
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
     )
     dataset = TextDataset(
-        data_path=EXAMPLE_DATA_PATH_TEXT,
+        data_path=EXAMPLE_DATA_PATH_JSON,
         encoder=model,
     )
     dataloader = DataLoader(dataset, batch_size=2, shuffle=False)

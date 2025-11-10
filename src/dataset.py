@@ -285,3 +285,26 @@ if __name__ == "__main__":
 
     scores = evaluator.evaluate_triplets(predicted, ground_truth)
     print(f"Evaluation scores: {scores}")
+
+
+class CombinedTextDataset(Dataset):
+    """Dataset that yields combined text per JSON sample for OIE extraction."""
+
+    def __init__(self, base_ds: JSONDataset):
+        """
+        Initialize with a JSONDataset.
+
+        Args:
+            base_ds: JSONDataset instance with graph_construction samples
+        """
+        self.base = base_ds
+
+    def __len__(self) -> int:
+        return len(self.base)
+
+    def __getitem__(self, idx: int) -> str:
+        sample = self.base[idx]
+        entity_context = sample["context"]
+        # Combine all entity sentences into one text
+        combined_text = " ".join(entity_context.values())
+        return combined_text

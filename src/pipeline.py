@@ -24,96 +24,18 @@ from config import (
     SD_FEW_SHOT_EXAMPLES_PATH,
     SD_PROMPT_PATH,
 )
-from dataset import TextDataset
-from torch.utils.data import DataLoader
+from datasets import TextDataset
 from encoder import Encoder
 from oie import OIE
 from schema_definer import SchemaDefiner
-
-
-def setup_file_logging(output_dir: Path):
-    """Configure file-based error logging with moderate verbosity."""
-    log_file = output_dir / "pipeline_errors.log"
-    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
-    file_handler.setLevel(logging.WARNING)  # Only warnings and errors
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    file_handler.setFormatter(formatter)
-
-    # Add to root logger so all modules use it
-    root_logger = logging.getLogger()
-    root_logger.addHandler(file_handler)
-    logger.info("Error logging enabled: %s", log_file)
-
-
-def save_problematic_report(problematic_cases: List[Dict], output_path: Path):
-    """Save a detailed report of problematic inputs and their outputs."""
-    import json
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(problematic_cases, f, indent=2, ensure_ascii=False)
-    logger.info(
-        "Saved problematic cases report: %s (%d cases)",
-        output_path,
-        len(problematic_cases),
-    )
-
-
-def process_oie_results(
-    oie_triplets: List, dataset, problematic_cases: List[Dict]
-) -> List[Tuple[str, List[Tuple[str, str, str]]]]:
-    """Process OIE extraction results and track problematic cases."""
-    all_triplets_per_text = []
-    for i, text in enumerate(dataset):
-        if len(oie_triplets) == 3 and isinstance(oie_triplets[0], str):
-            head, relation, tail = oie_triplets
-            valid_triplets = ["#SEP".join((head, relation, tail))]
-            all_triplets_per_text.append((text, valid_triplets))
-        elif oie_triplets and isinstance(oie_triplets[i], (list, tuple)):
-            # Check for malformed triplets
-            malformed = []
-            valid_triplets = []
-            if len(oie_triplets[i]) == 3 and isinstance(oie_triplets[i], (list, tuple)):
-                valid_triplets.append("#SEP".join(oie_triplets[i]))
-                head, relation, tail = oie_triplets[i]
-            else:
-                malformed.append(str(oie_triplets[i]))
-            all_triplets_per_text.append((text, valid_triplets))
-            if malformed:
-                problematic_cases.append(
-                    {
-                        "input_text": text,
-                        "issue": "malformed_triplets",
-                        "malformed_triplets": malformed,
-                        "valid_triplets": valid_triplets,
-                    }
-                )
-
-        else:
-            logger.warning("No triplets extracted for text: %s", text)
-            problematic_cases.append(
-                {
-                    "input_text": text,
-                    "issue": "no_triplets",
-                    "extracted_output": (
-                        oie_triplets[i] if i < len(oie_triplets) else None
-                    ),
-                }
-            )
-            all_triplets_per_text.append((text, []))
-
-    return all_triplets_per_text
-
-
-def add_problematic_case(
-    problematic_cases: List[Dict], text: str, issue: str, **kwargs
-):
-    """Helper to add a problematic case with consistent structure."""
-    case = {"input_text": text, "issue": issue}
-    case.update(kwargs)
-    problematic_cases.append(case)
-
+from torch.utils.data import DataLoader
+from pipeline_utils import (
+    setup_file_logging,
+    save_problematic_report,
+    add_problematic_case,
+    save_synonyms,
+    process_oie_results,
+)
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -166,24 +88,9 @@ def run_pipeline(
     schema_definer.save_entities_relations_to_json(
         all_triplets_per_text, output_dir / "triplets.json"
     )
-    import json
-
-    serializable_synonyms = {}
-    if synonyms:
-        for i, text_synonyms in enumerate(synonyms):
-            if text_synonyms:
-                cleaned: Dict[str, List[str]] = {}
-                for k, v in text_synonyms.items():
-                    key_str = f"{k[0]}#SEP{k[1]}" if isinstance(k, tuple) else str(k)
-                    if isinstance(v, (list, tuple, set)):
-                        unique_vals = sorted(set(v))
-                    else:
-                        unique_vals = [v]
-                    cleaned[key_str] = unique_vals
-                serializable_synonyms[str(i)] = cleaned
-
-    with open(output_dir / "synonyms.json", "w", encoding="utf-8") as f:
-        json.dump(serializable_synonyms, f, indent=2, ensure_ascii=False)
+    
+    # Save synonyms with de-duplication
+    save_synonyms(synonyms, output_dir / "synonyms.json")
 
     # Collect all triplets and relations for unified schema generation
     all_triplets: List[Tuple[str, str, str]] = []

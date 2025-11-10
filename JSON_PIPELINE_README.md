@@ -12,7 +12,7 @@ The JSON pipeline supports four question types:
 
 ## Components
 
-### 1. JSONDataset (`src/dataset.py`)
+### 1. JSONDataset (`src/datasets/json_dataset.py`)
 
 **Purpose**: Load and format structured JSON data for different tasks.
 
@@ -24,7 +24,7 @@ The JSON pipeline supports four question types:
 
 **Usage**:
 ```python
-from src.dataset import JSONDataset
+from src.datasets import JSONDataset
 
 # For graph construction
 gc_dataset = JSONDataset(data_path, task_type="graph_construction")
@@ -33,7 +33,30 @@ gc_dataset = JSONDataset(data_path, task_type="graph_construction")
 qa_dataset = JSONDataset(data_path, task_type="qa")
 ```
 
-### 2. GraphConstructionEvaluator (`src/dataset.py`)
+### 2. CombinedTextDataset (`src/datasets/json_dataset.py`)
+
+**Purpose**: Provide flexible text representations for OIE extraction.
+
+**Modes**:
+- **base** *(default)*: single combined text per sample
+- **chunking**: splits text into word chunks (configurable size, default 100 words)
+- **sentence**: splits text into individual sentences
+
+**Usage**:
+```python
+from src.datasets import CombinedTextDataset, JSONDataset
+from torch.utils.data import DataLoader
+
+graph_dataset = JSONDataset(data_path, task_type="graph_construction")
+combined_ds = CombinedTextDataset(
+    graph_dataset,
+    mode="chunking",   # "base", "chunking", "sentence"
+    chunk_size=150,      # only used for chunking mode
+)
+dataloader = DataLoader(combined_ds, batch_size=4, shuffle=False)
+```
+
+### 3. GraphConstructionEvaluator (`src/datasets/evaluator.py`)
 
 **Purpose**: Evaluate extracted triplets against ground truth evidences.
 
@@ -44,13 +67,13 @@ qa_dataset = JSONDataset(data_path, task_type="qa")
 
 **Usage**:
 ```python
-from src.dataset import GraphConstructionEvaluator
+from src.datasets import GraphConstructionEvaluator
 
 evaluator = GraphConstructionEvaluator()
 scores = evaluator.evaluate_triplets(predicted, ground_truth)
 ```
 
-### 3. QASystem (`src/qa_system.py`)
+### 4. QASystem (`src/qa_system.py`)
 
 **Purpose**: Answer questions using extracted knowledge graphs.
 
@@ -69,17 +92,25 @@ qa_system.load_knowledge_graph(triplets)
 result = qa_system.answer_question(question)
 ```
 
-### 4. JSON Pipeline (`src/json_pipeline.py`)
+### 5. JSON Pipeline (`src/json_pipeline.py`)
 
 **Purpose**: End-to-end pipeline integrating all components.
 
 **Workflow**:
 1. Load JSON dataset
-2. Extract triplets using OIE
-3. Apply schema compression
+2. Build text representations (base, chunking, sentence)
+3. Extract triplets using OIE (batch + synonym support)
+4. Aggregate chunk-level triplets back to samples
+5. Run unified or incremental schema definition & compression
 4. Evaluate graph construction
 5. Run QA evaluation
 6. Generate comprehensive reports
+
+**Key Options**:
+- `extraction_mode`: choose `"base"`, `"chunking"`, or `"sentence"`
+- `chunk_size`: word-window for chunking mode
+- `incremental_schema`: enable incremental schema compression for long documents
+- `schema_update_frequency`: relations collected before re-running schema compression
 
 ## Data Format
 
@@ -180,7 +211,11 @@ metrics = run_json_pipeline(
     output_dir=Path("output/json_pipeline"),
     use_synonyms=True,
     compression_method="agglomerative",
-    compression_threshold=0.8
+    compression_threshold=0.8,
+    extraction_mode="chunking",
+    chunk_size=120,
+    incremental_schema=True,
+    schema_update_frequency=75,
 )
 
 graph_metrics, qa_metrics = metrics
@@ -205,7 +240,12 @@ This tests:
 
 ```
 src/
-├── dataset.py          # JSONDataset and GraphConstructionEvaluator
+├── datasets/
+│   ├── __init__.py               # Dataset exports
+│   ├── json_dataset.py           # JSONDataset & CombinedTextDataset
+│   ├── text_dataset.py           # TextDataset for plain text pipeline
+│   └── evaluator.py              # GraphConstructionEvaluator
+├── pipeline_utils.py    # Shared pipeline helpers
 ├── qa_system.py        # QASystem implementation
 ├── json_pipeline.py    # End-to-end pipeline
 └── config.py          # Configuration with JSON paths
@@ -223,6 +263,8 @@ JSON_PIPELINE_README.md # This documentation
 ✅ **Question answering** using knowledge graphs
 ✅ **Comprehensive metrics** for both tasks
 ✅ **Support for all 4 question types**
+✅ **Flexible extraction modes** (base, chunking, sentence)
+✅ **Incremental schema compression** with configurable frequency
 ✅ **Extensible design** for enhancements
 
 ## Future Enhancements
