@@ -8,7 +8,7 @@ End-to-end pipeline for JSON dataset:
 5) Evaluate QA performance
 """
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Dict, Any
 import logging
 from tqdm import tqdm
 import json
@@ -34,7 +34,6 @@ from pipeline_utils import (
     setup_file_logging,
     save_problematic_report,
     add_problematic_case,
-    save_synonyms,
 )
 
 logging.basicConfig(level=LOGGING_LEVEL)
@@ -50,11 +49,14 @@ def run_json_pipeline(
     compress_if_more_than: int = 30,
     extraction_mode: str = "base",
     chunk_size: int = 100,
-    incremental_schema: bool = False,
-    schema_update_frequency: int = 50,
 ):
     """
     Run complete JSON pipeline for graph construction and QA.
+
+    Each _id is processed independently with complete isolation:
+    - Separate schema definition and compression
+    - Separate entities, relations, and synonyms
+    - No information overlap between different _id's
 
     Args:
         data_path: Path to JSON data file
@@ -65,8 +67,6 @@ def run_json_pipeline(
         compress_if_more_than: Minimum relations before compression
         extraction_mode: Mode for text extraction - "base", "chunking", or "sentence"
         chunk_size: Number of words per chunk (for chunking mode)
-        incremental_schema: Whether to run schema compression incrementally
-        schema_update_frequency: Number of relations before running schema update
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_file_logging(output_dir, "json_pipeline_errors.log")
@@ -114,7 +114,7 @@ def run_json_pipeline(
         graph_dataset, mode=extraction_mode, chunk_size=chunk_size
     )
     dataloader = DataLoader(combined_ds, batch_size=4, shuffle=False)
-    
+
     logger.info(
         f"Using extraction mode: {extraction_mode}, "
         f"total chunks: {len(combined_ds)}, "
@@ -133,169 +133,271 @@ def run_json_pipeline(
     logger.info("Aggregating chunk triplets back to samples...")
     sample_triplets_map: Dict[int, List] = {i: [] for i in range(len(graph_dataset))}
     
-    for chunk_idx, chunk_triplets in enumerate(oie_triplets_list):
-        sample_idx = combined_ds.get_sample_index(chunk_idx)
-        if chunk_triplets:
-            sample_triplets_map[sample_idx].extend(chunk_triplets)
+    # Since OIE might return flattened results, we need to process chunks manually
+    # to maintain proper mapping between chunks and their original samples
+    logger.info(f"Processing {len(combined_ds)} chunks individually...")
     
+    chunk_triplets_list = []
+    chunk_synonyms_list = []
+    
+    # Process each chunk individually to maintain mapping
+    for chunk_idx in tqdm(range(len(combined_ds)), desc="Processing chunks"):
+        chunk_text = combined_ds[chunk_idx]
+        
+        try:
+            if use_synonyms:
+                result = oie.extractor.extract_with_synonyms(
+                    input_text=chunk_text,
+                    prompt_template=oie.prompt_template,
+                    few_shot_examples=oie.few_shot_examples,
+                    return_synonyms=True,
+                )
+                if isinstance(result, tuple) and len(result) == 2:
+                    chunk_triplet, chunk_synonym = result
+                    chunk_triplets_list.append(chunk_triplet if isinstance(chunk_triplet, list) else [chunk_triplet])
+                    chunk_synonyms_list.append(chunk_synonym if chunk_synonym else {})
+                else:
+                    chunk_triplets_list.append(result if isinstance(result, list) else [])
+                    chunk_synonyms_list.append({})
+            else:
+                chunk_triplet = oie.extractor(
+                    input_text=chunk_text,
+                    prompt_template=oie.prompt_template,
+                    few_shot_examples=oie.few_shot_examples,
+                )
+                chunk_triplets_list.append(chunk_triplet if isinstance(chunk_triplet, list) else [chunk_triplet])
+                chunk_synonyms_list.append({})
+        except Exception as e:
+            logger.error(f"Error processing chunk {chunk_idx}: {e}")
+            chunk_triplets_list.append([])
+            chunk_synonyms_list.append({})
+    
+    # Now map chunk results back to samples
+    for chunk_idx, chunk_triplets in enumerate(chunk_triplets_list):
+        try:
+            sample_idx = combined_ds.get_sample_index(chunk_idx)
+            if chunk_triplets:
+                sample_triplets_map[sample_idx].extend(chunk_triplets)
+        except IndexError as e:
+            logger.error(f"Index error mapping chunk {chunk_idx}: {e}")
+            logger.error(f"Chunk results length: {len(chunk_triplets_list)}, Dataset chunks: {len(combined_ds.text_chunks)}")
+            continue
+    
+    # Replace the original OIE results with our chunk-by-chunk results
+    oie_triplets_list = chunk_triplets_list
+    synonyms = chunk_synonyms_list
+
     logger.info(
         f"Aggregated triplets: "
         f"{sum(len(t) for t in sample_triplets_map.values())} total triplets "
         f"across {len(graph_dataset)} samples"
     )
 
-    # Process each sample for graph construction
-    all_triplets_per_sample: List[List[Tuple[str, str, str]]] = []
-    all_results: List[Dict[str, Any]] = []
-    
-    # Incremental schema tracking
-    cumulative_schema = {}
-    cumulative_relations = set()
-    relation_count = 0
-    schema_updates_count = 0
+    # Process each sample independently - no overlap between _id's
+    results_by_id: Dict[str, Dict[str, Any]] = {}
 
     for i in tqdm(range(len(graph_dataset)), desc="Processing samples"):
         sample = graph_dataset[i]
         entity_context = sample["context"]
-        # Use aggregated triplets for this sample
-        extracted_triplets = sample_triplets_map.get(i, [])
-        
-        if not extracted_triplets:
-            logger.warning(f"No triplets extracted for sample {i}")
-            add_problematic_case(
-                problematic_cases,
-                text=str(sample.get("id", i)),
-                issue="No triplets extracted",
-                sample_id=sample.get("id"),
-                context=entity_context,
-            )
 
-        # Apply schema processing if we have triplets
-        if extracted_triplets:
-            try:
-                # Extract relations from triplets
-                sample_relations = set()
-                for triplet in extracted_triplets:
-                    if isinstance(triplet, (list, tuple)) and len(triplet) >= 2:
-                        sample_relations.add(triplet[1])
-                    elif isinstance(triplet, str) and "#SEP" in triplet:
-                        parts = triplet.split("#SEP")
-                        if len(parts) >= 2:
-                            sample_relations.add(parts[1])
-                
-                # Incremental schema: update cumulative relations
-                if incremental_schema:
-                    cumulative_relations.update(sample_relations)
-                    relation_count += len(sample_relations)
-                    
-                    # Check if we need to run schema update
-                    if relation_count >= schema_update_frequency * (schema_updates_count + 1):
-                        logger.info(
-                            f"Running incremental schema update #{schema_updates_count + 1} "
-                            f"({len(cumulative_relations)} unique relations)"
-                        )
-                        # Generate schema for cumulative relations
-                        dummy_text = "Cumulative schema generation"
-                        dummy_triplets = [["dummy", rel, "dummy"] for rel in cumulative_relations]
-                        
-                        schema_list = schema_definer.run(dummy_text, [dummy_triplets])
-                        if schema_list and schema_list[0]:
-                            cumulative_schema = schema_list[0]
-                            
-                            # Compress if needed
-                            if len(cumulative_schema) > compress_if_more_than:
-                                cumulative_schema = schema_definer.compress_schema(
-                                    cumulative_schema,
-                                    method=compression_method,
-                                    threshold=compression_threshold,
-                                )
-                        schema_updates_count += 1
-                
-                # Schema definition for current sample
-                combined_text = " ".join(entity_context.values())
-                
-                # Use cumulative schema if incremental, otherwise generate new
-                if incremental_schema and cumulative_schema:
-                    schema = cumulative_schema
-                else:
-                    schema_list = schema_definer.run(combined_text, [extracted_triplets])
-                    schema = schema_list[0] if schema_list and schema_list[0] else {}
+        # Get sample _id for isolation
+        sample_id = sample.get("_id", f"sample_{i}")
 
-                if schema:
-                    # Compression if needed (and not using incremental)
-                    if not incremental_schema and len(schema) > compress_if_more_than:
-                        compressed_schema = schema_definer.compress_schema(
-                            schema,
-                            method=compression_method,
-                            threshold=compression_threshold,
-                        )
-                    else:
-                        compressed_schema = schema
-
-                    # Swap relations to compressed variants
-                    if compressed_schema and compressed_schema != schema:
-                        original_to_compressed = {}
-                        for orig_rel in sample_relations:
-                            # Find best match in compressed schema
-                            best_match = orig_rel
-                            for comp_rel in compressed_schema.keys():
-                                if (
-                                    orig_rel.lower() in comp_rel.lower()
-                                    or comp_rel.lower() in orig_rel.lower()
-                                ):
-                                    best_match = comp_rel
-                                    break
-                            original_to_compressed[orig_rel] = best_match
-                        
-                        final_triplets = schema_definer.swap_relations_to_compressed(
-                            extracted_triplets, original_to_compressed
-                        )
-                    else:
-                        final_triplets = extracted_triplets
-                else:
-                    final_triplets = extracted_triplets
-            except Exception as e:
-                logger.error(f"Error in schema processing for sample {i}: {e}")
-                final_triplets = extracted_triplets
-        else:
-            final_triplets = []
-
-        all_triplets_per_sample.append(final_triplets)
-
-        # Store results
-        result = {
-            "sample_id": sample["id"],
+        # Initialize isolated storage for this _id
+        results_by_id[sample_id] = {
+            "sample_id": sample_id,
             "type": sample["type"],
             "question": sample["question"],
             "ground_truth_answer": sample["answer"],
-            "extracted_triplets": final_triplets,
+            "extracted_triplets": [],
+            "compressed_triplets": [],
             "ground_truth_evidences": sample["evidences"],
+            "schema_definition": {},
+            "compressed_schema": {},
+            "synonyms": {},
+            "entities": set(),
+            "relations": set(),
         }
-        all_results.append(result)
 
-    # Log incremental schema stats
-    if incremental_schema:
-        logger.info(
-            f"Incremental schema complete: {schema_updates_count} updates performed, "
-            f"{len(cumulative_relations)} unique relations tracked"
-        )
+        # Use aggregated triplets for this sample
+        extracted_triplets = sample_triplets_map.get(i, [])
+        results_by_id[sample_id]["extracted_triplets"] = extracted_triplets
 
-    # Save original triplets
+        if not extracted_triplets:
+            logger.warning(f"No triplets extracted for sample {sample_id}")
+            add_problematic_case(
+                problematic_cases,
+                text=str(sample_id),
+                issue="No triplets extracted",
+                sample_id=sample_id,
+                context=entity_context,
+            )
+            continue
+
+        # Apply schema processing independently for this _id
+        try:
+            # Extract entities and relations from triplets for this sample only
+            sample_entities = set()
+            sample_relations = set()
+            for triplet in extracted_triplets:
+                if isinstance(triplet, (list, tuple)) and len(triplet) >= 3:
+                    sample_entities.add(triplet[0])
+                    sample_relations.add(triplet[1])
+                    sample_entities.add(triplet[2])
+                elif isinstance(triplet, str) and "#SEP" in triplet:
+                    parts = triplet.split("#SEP")
+                    if len(parts) >= 3:
+                        sample_entities.add(parts[0])
+                        sample_relations.add(parts[1])
+                        sample_entities.add(parts[2])
+
+            results_by_id[sample_id]["entities"] = list(sample_entities)
+            results_by_id[sample_id]["relations"] = list(sample_relations)
+
+            # Schema definition for this sample only
+            combined_text = " ".join(entity_context.values())
+            schema_list = schema_definer.run(combined_text, [extracted_triplets])
+            schema = schema_list[0] if schema_list and schema_list[0] else {}
+            results_by_id[sample_id]["schema_definition"] = schema
+
+            # Compression for this sample only
+            compressed_schema = schema
+            original_to_compressed = {}
+
+            if schema and len(schema) > compress_if_more_than:
+                logger.info(
+                    f"Compressing schema for {sample_id} from {len(schema)} relations"
+                )
+                compressed_schema = schema_definer.compress_schema(
+                    schema,
+                    method=compression_method,
+                    threshold=compression_threshold,
+                )
+
+                if compressed_schema:
+                    logger.info(f"Compressed to {len(compressed_schema)} relations")
+                    # Build mapping for this sample only
+                    for orig_rel in sample_relations:
+                        best_match = orig_rel
+                        for comp_rel in compressed_schema.keys():
+                            if (
+                                orig_rel.lower() in comp_rel.lower()
+                                or comp_rel.lower() in orig_rel.lower()
+                            ):
+                                best_match = comp_rel
+                                break
+                        original_to_compressed[orig_rel] = best_match
+
+            results_by_id[sample_id]["compressed_schema"] = compressed_schema
+
+            # Apply compression to triplets for this sample only
+            if compressed_schema and compressed_schema != schema:
+                final_triplets = schema_definer.swap_relations_to_compressed(
+                    extracted_triplets, original_to_compressed
+                )
+            else:
+                final_triplets = extracted_triplets
+
+            results_by_id[sample_id]["compressed_triplets"] = final_triplets
+
+            # Get synonyms for this sample's chunks only
+            sample_synonyms = {}
+            if use_synonyms and synonyms:
+                # Get all chunk indices for this sample
+                chunk_indices = [
+                    idx
+                    for idx, sample_idx in enumerate(combined_ds.text_chunks)
+                    if sample_idx == i
+                ]
+                for chunk_idx in chunk_indices:
+                    if chunk_idx < len(synonyms) and synonyms[chunk_idx]:
+                        # Convert tuple keys to strings for this sample
+                        for k, v in synonyms[chunk_idx].items():
+                            key_str = (
+                                f"{k[0]}#SEP{k[1]}" if isinstance(k, tuple) else str(k)
+                            )
+                            if isinstance(v, (list, tuple, set)):
+                                unique_vals = sorted(set(v))
+                            else:
+                                unique_vals = [v]
+                            sample_synonyms[key_str] = unique_vals
+
+            results_by_id[sample_id]["synonyms"] = sample_synonyms
+
+        except Exception as e:
+            logger.error(f"Error in schema processing for sample {sample_id}: {e}")
+            results_by_id[sample_id]["compressed_triplets"] = extracted_triplets
+
+    # Save results by _id - complete isolation
+    logger.info("Saving isolated results by _id...")
+
+    # Save all results keyed by _id
+    results_output_path = output_dir / "results.json"
+
+    with open(results_output_path, "w", encoding="utf-8") as f:
+        # Convert sets to lists for JSON serialization
+        serializable_results = {}
+        for sample_id, data in results_by_id.items():
+            serializable_results[sample_id] = {
+                k: v if not isinstance(v, set) else list(v) for k, v in data.items()
+            }
+        json.dump(serializable_results, f, indent=2, ensure_ascii=False)
+
+    # Save original triplets by _id
+    original_triplets_by_id = {
+        sample_id: data["extracted_triplets"]
+        for sample_id, data in results_by_id.items()
+    }
     original_output_path = output_dir / "triplets.json"
-    schema_definer.save_entities_relations_to_json(
-        [t for sample_triplets in all_triplets_per_sample for t in sample_triplets],
-        original_output_path,
-    )
+    with open(original_output_path, "w", encoding="utf-8") as f:
+        json.dump(original_triplets_by_id, f, indent=2, ensure_ascii=False)
 
-    # Save compressed triplets (same as original in this pipeline)
+    # Save compressed triplets by _id
+    compressed_triplets_by_id = {
+        sample_id: data["compressed_triplets"]
+        for sample_id, data in results_by_id.items()
+    }
     compressed_output_path = output_dir / "triplets_compressed.json"
-    schema_definer.save_entities_relations_to_json(
-        [t for sample_triplets in all_triplets_per_sample for t in sample_triplets],
-        compressed_output_path,
+    with open(compressed_output_path, "w", encoding="utf-8") as f:
+        json.dump(compressed_triplets_by_id, f, indent=2, ensure_ascii=False)
+
+    # Save schema definitions by _id
+    schemas_by_id = {
+        sample_id: data["schema_definition"]
+        for sample_id, data in results_by_id.items()
+    }
+    schema_definer.save_schema_definitions(
+        [schemas_by_id], output_dir / "schema_definitions.json"
     )
 
-    # Save synonyms with de-duplication
-    save_synonyms(synonyms, output_dir / "synonyms.json")
+    # Save compressed schemas by _id
+    compressed_schemas_by_id = {
+        sample_id: data["compressed_schema"]
+        for sample_id, data in results_by_id.items()
+    }
+    schema_definer.save_schema_definitions(
+        [compressed_schemas_by_id], output_dir / "compressed_schemas.json"
+    )
+
+    # Save synonyms by _id
+    synonyms_by_id = {
+        sample_id: data["synonyms"] for sample_id, data in results_by_id.items()
+    }
+    with open(output_dir / "synonyms.json", "w", encoding="utf-8") as f:
+        json.dump(synonyms_by_id, f, indent=2, ensure_ascii=False)
+
+    # Save entities and relations by _id
+    entities_by_id = {
+        sample_id: data["entities"] for sample_id, data in results_by_id.items()
+    }
+    with open(output_dir / "entities.json", "w", encoding="utf-8") as f:
+        json.dump(entities_by_id, f, indent=2, ensure_ascii=False)
+
+    relations_by_id = {
+        sample_id: data["relations"] for sample_id, data in results_by_id.items()
+    }
+    with open(output_dir / "relations.json", "w", encoding="utf-8") as f:
+        json.dump(relations_by_id, f, indent=2, ensure_ascii=False)
 
     # Save problematic cases report
     if problematic_cases:
@@ -304,8 +406,17 @@ def run_json_pipeline(
     else:
         logger.info("No problematic cases found.")
 
-    # Evaluate graph construction
+    # Evaluate graph construction using isolated results
     logger.info("Evaluating graph construction performance...")
+    evaluator = GraphConstructionEvaluator()
+
+    # Extract triplets list for evaluation (maintain order)
+    all_triplets_per_sample = []
+    for i in range(len(graph_dataset)):
+        sample = graph_dataset[i]
+        sample_id = sample.get("_id", f"sample_{i}")
+        all_triplets_per_sample.append(results_by_id[sample_id]["compressed_triplets"])
+
     graph_metrics = evaluator.evaluate_dataset(graph_dataset, all_triplets_per_sample)
 
     # Save graph construction results
@@ -313,7 +424,7 @@ def run_json_pipeline(
 
     with open(graph_results_path, "w", encoding="utf-8") as f:
         json.dump(
-            {"metrics": graph_metrics, "samples": all_results},
+            {"metrics": graph_metrics, "samples_by_id": results_by_id},
             f,
             indent=2,
             ensure_ascii=False,
@@ -326,25 +437,27 @@ def run_json_pipeline(
     logger.info("Running QA evaluation...")
     qa_system = QASystem(encoder=encoder)
 
-    # For each sample, use its extracted triplets as knowledge graph
+    # For each sample, use its extracted triplets as knowledge graph (isolated by _id)
     qa_results = []
     for i, sample in enumerate(tqdm(qa_dataset, desc="QA Evaluation")):
-        qa_system.load_knowledge_graph(all_triplets_per_sample[i])
+        sample_id = sample.get("_id", f"sample_{i}")
+        # Use this sample's isolated triplets
+        qa_system.load_knowledge_graph(results_by_id[sample_id]["compressed_triplets"])
 
         question = sample["question"]
         ground_truth = sample["answer"]
 
         try:
             qa_result = qa_system.answer_question(question)
-            qa_result["sample_id"] = sample["id"]
+            qa_result["sample_id"] = sample_id  # Use _id instead of id
             qa_result["type"] = sample["type"]
             qa_result["ground_truth_answer"] = ground_truth
             qa_results.append(qa_result)
         except Exception as e:
-            logger.error(f"Error in QA for sample {i}: {e}")
+            logger.error(f"Error in QA for sample {sample_id}: {e}")
             qa_results.append(
                 {
-                    "sample_id": sample["id"],
+                    "sample_id": sample_id,  # Use _id instead of id
                     "type": sample["type"],
                     "question": question,
                     "answer": f"Error: {str(e)}",
@@ -451,6 +564,4 @@ if __name__ == "__main__":
         compress_if_more_than=30,
         extraction_mode="chunking",  # Options: "base", "chunking", "sentence"
         chunk_size=100,
-        incremental_schema=False,
-        schema_update_frequency=50,
     )

@@ -170,6 +170,8 @@ class CombinedTextDataset(Dataset):
     
     def get_sample_index(self, chunk_idx: int) -> int:
         """Get the original sample index for a chunk index."""
+        if chunk_idx >= len(self.text_chunks):
+            raise IndexError(f"Chunk index {chunk_idx} out of range. Available chunks: 0-{len(self.text_chunks)-1}")
         sample_idx, _ = self.text_chunks[chunk_idx]
         return sample_idx
     
