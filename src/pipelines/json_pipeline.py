@@ -25,12 +25,12 @@ from config import (
     SD_PROMPT_PATH,
 )
 from datasets import JSONDataset, GraphConstructionEvaluator, CombinedTextDataset
-from encoder import Encoder
-from oie import OIE
-from schema_definer import SchemaDefiner
-from qa_system import QASystem
+from core.encoder import Encoder
+from core.oie import OIE
+from core.schema_definer import SchemaDefiner
+from evaluation.qa_system import QASystem
 from torch.utils.data import DataLoader
-from pipeline_utils import (
+from .pipeline_utils import (
     setup_file_logging,
     save_problematic_report,
     add_problematic_case,
@@ -132,18 +132,18 @@ def run_json_pipeline(
     # Aggregate chunk triplets back to samples
     logger.info("Aggregating chunk triplets back to samples...")
     sample_triplets_map: Dict[int, List] = {i: [] for i in range(len(graph_dataset))}
-    
+
     # Since OIE might return flattened results, we need to process chunks manually
     # to maintain proper mapping between chunks and their original samples
     logger.info(f"Processing {len(combined_ds)} chunks individually...")
-    
+
     chunk_triplets_list = []
     chunk_synonyms_list = []
-    
+
     # Process each chunk individually to maintain mapping
     for chunk_idx in tqdm(range(len(combined_ds)), desc="Processing chunks"):
         chunk_text = combined_ds[chunk_idx]
-        
+
         try:
             if use_synonyms:
                 result = oie.extractor.extract_with_synonyms(
@@ -154,10 +154,16 @@ def run_json_pipeline(
                 )
                 if isinstance(result, tuple) and len(result) == 2:
                     chunk_triplet, chunk_synonym = result
-                    chunk_triplets_list.append(chunk_triplet if isinstance(chunk_triplet, list) else [chunk_triplet])
+                    chunk_triplets_list.append(
+                        chunk_triplet
+                        if isinstance(chunk_triplet, list)
+                        else [chunk_triplet]
+                    )
                     chunk_synonyms_list.append(chunk_synonym if chunk_synonym else {})
                 else:
-                    chunk_triplets_list.append(result if isinstance(result, list) else [])
+                    chunk_triplets_list.append(
+                        result if isinstance(result, list) else []
+                    )
                     chunk_synonyms_list.append({})
             else:
                 chunk_triplet = oie.extractor(
@@ -165,13 +171,17 @@ def run_json_pipeline(
                     prompt_template=oie.prompt_template,
                     few_shot_examples=oie.few_shot_examples,
                 )
-                chunk_triplets_list.append(chunk_triplet if isinstance(chunk_triplet, list) else [chunk_triplet])
+                chunk_triplets_list.append(
+                    chunk_triplet
+                    if isinstance(chunk_triplet, list)
+                    else [chunk_triplet]
+                )
                 chunk_synonyms_list.append({})
         except Exception as e:
             logger.error(f"Error processing chunk {chunk_idx}: {e}")
             chunk_triplets_list.append([])
             chunk_synonyms_list.append({})
-    
+
     # Now map chunk results back to samples
     for chunk_idx, chunk_triplets in enumerate(chunk_triplets_list):
         try:
@@ -180,9 +190,11 @@ def run_json_pipeline(
                 sample_triplets_map[sample_idx].extend(chunk_triplets)
         except IndexError as e:
             logger.error(f"Index error mapping chunk {chunk_idx}: {e}")
-            logger.error(f"Chunk results length: {len(chunk_triplets_list)}, Dataset chunks: {len(combined_ds.text_chunks)}")
+            logger.error(
+                f"Chunk results length: {len(chunk_triplets_list)}, Dataset chunks: {len(combined_ds.text_chunks)}"
+            )
             continue
-    
+
     # Replace the original OIE results with our chunk-by-chunk results
     oie_triplets_list = chunk_triplets_list
     synonyms = chunk_synonyms_list

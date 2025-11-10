@@ -1,6 +1,7 @@
 """
 Text dataset for simple line-by-line text processing.
 """
+
 from torch.utils.data import Dataset
 from pathlib import Path
 import logging
@@ -14,7 +15,7 @@ class TextDataset(Dataset):
     def __init__(self, data_path: Path, encoder=None):
         """
         Initialize text dataset.
-        
+
         Args:
             data_path: Path to text file
             encoder: Optional encoder for encoding text

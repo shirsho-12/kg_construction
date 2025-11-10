@@ -1,0 +1,19 @@
+[
+  {
+    "relation_1": "description",
+    "relation_2": "description",
+    "relation_3": "description",
+    "Here are some examples": "",
+    "Text": "Josef Schäffer (born July 2, 1891 in Moravia) was an Austrian track and field athlete who competed in the 1912 Summer Olympics.",
+    "Triples": "[['Josef Schäffer', 'date of birth', 'July 2, 1891'], ['Josef Schäffer', 'place of birth', 'Moravia'], ['Josef Schäffer', 'participant in', '1912 Summer Olympics'], ['1912 Summer Olympics', 'point in time', '1912']]",
+    "publication date": "The subject entity was published or released on the date specified by the object entity.",
+    "genre": "The subject entity belongs to the genre specified by the object entity.",
+    "director": "The subject entity was directed by the person or entity specified by the object entity.",
+    "cast member": "The subject entity includes the person specified by the object entity as a member of its cast.",
+    "media franchise": "The subject entity is a part of the media franchise specified by the object entity.",
+    "instance of": "The subject entity is an instance or example of the type specified by the object entity.",
+    "date of birth": "The subject entity was born on the date specified by the object entity.",
+    "place of birth": "The subject entity was born in the location specified by the object entity.",
+    "participant in": "The"
+  }
+]

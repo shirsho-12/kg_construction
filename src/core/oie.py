@@ -7,10 +7,9 @@ from config import (
     OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
     OIE_SYNONYMY_PROMPT_PATH,
 )
-from encoder import Encoder
-from extractor import Extractor
+from .encoder import Encoder
+from .extractor import Extractor
 from torch.utils.data import DataLoader
-from logging import Logger
 from pathlib import Path
 import logging
 from tqdm import tqdm
@@ -78,21 +77,25 @@ class OIE:
                     logger.debug(f"Extracted triplet: {oie_triplet}")
                     logger.debug(f"Extracted synonyms: {oie_synonym}")
                     oie_synonyms.append(oie_synonym)
-                    oie_triplets.extend(oie_triplet if isinstance(oie_triplet, list) else [])
+                    oie_triplets.extend(
+                        oie_triplet if isinstance(oie_triplet, list) else []
+                    )
                 elif isinstance(result, list):
                     # Handle case where only list is returned (no synonyms)
                     logger.debug("Extracted triplets (no synonyms): %s", result)
                     oie_triplets.extend(result)
                     oie_synonyms.append({})
                 else:
-                    logger.warning("Unexpected result from extract_with_synonyms: %s", result)
+                    logger.warning(
+                        "Unexpected result from extract_with_synonyms: %s", result
+                    )
                     oie_synonyms.append({})
 
         return oie_triplets, oie_synonyms
 
 
 if __name__ == "__main__":
-    from dataset import TextDataset
+    from datasets import TextDataset
     from torch.utils.data import DataLoader
     from config import EXAMPLE_DATA_PATH_TEXT
 

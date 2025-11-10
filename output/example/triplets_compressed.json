@@ -1,0 +1,22 @@
+[
+  {
+    "subject": "John Doe",
+    "relation": "is_a_student",
+    "object": "National University of Singapore"
+  },
+  {
+    "subject": "Recessions",
+    "relation": "bad",
+    "object": "homeowners"
+  },
+  {
+    "subject": "Real estate",
+    "relation": "loses_value",
+    "object": "sell"
+  },
+  {
+    "subject": "If",
+    "relation": "need",
+    "object": "recession-related"
+  }
+]

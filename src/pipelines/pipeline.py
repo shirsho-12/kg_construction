@@ -25,11 +25,11 @@ from config import (
     SD_PROMPT_PATH,
 )
 from datasets import TextDataset
-from encoder import Encoder
-from oie import OIE
-from schema_definer import SchemaDefiner
+from core.encoder import Encoder
+from core.oie import OIE
+from core.schema_definer import SchemaDefiner
 from torch.utils.data import DataLoader
-from pipeline_utils import (
+from .pipeline_utils import (
     setup_file_logging,
     save_problematic_report,
     add_problematic_case,
@@ -88,9 +88,10 @@ def run_pipeline(
     schema_definer.save_entities_relations_to_json(
         all_triplets_per_text, output_dir / "triplets.json"
     )
-    
+
     # Save synonyms with de-duplication
-    save_synonyms(synonyms, output_dir / "synonyms.json")
+    if use_synonyms and synonyms:
+        save_synonyms(synonyms, output_dir / "synonyms.json")
 
     # Collect all triplets and relations for unified schema generation
     all_triplets: List[Tuple[str, str, str]] = []

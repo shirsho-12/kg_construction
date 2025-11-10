@@ -1,0 +1,43 @@
+[
+  {
+    "input_index": 0,
+    "original_relations": [
+      "relation_1",
+      "relation_2",
+      "relation_3",
+      "Here are some examples",
+      "Text",
+      "Triples",
+      "publication date",
+      "genre",
+      "director",
+      "cast member",
+      "media franchise",
+      "instance of",
+      "date of birth",
+      "place of birth",
+      "participant in"
+    ],
+    "compressed_relations": [
+      "relation_1",
+      "relation_2",
+      "relation_3",
+      "Here are some examples",
+      "Text",
+      "Triples",
+      "publication date",
+      "genre",
+      "director",
+      "cast member",
+      "media franchise",
+      "instance of",
+      "date of birth",
+      "place of birth",
+      "participant in"
+    ],
+    "original_count": 15,
+    "compressed_count": 15,
+    "compression_ratio": 1.0,
+    "compression_method": "agglomerative"
+  }
+]

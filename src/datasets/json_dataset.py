@@ -2,9 +2,10 @@
 JSON dataset for structured data processing with multiple extraction modes.
 Supports base, chunking, and sentence-level extraction.
 """
+
 from torch.utils.data import Dataset
 import json
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any
 from pathlib import Path
 import logging
 import re
@@ -108,11 +109,11 @@ class CombinedTextDataset(Dataset):
         self.base = base_ds
         self.mode = mode
         self.chunk_size = chunk_size
-        
+
         # Pre-process and store all text chunks with their sample indices
         self.text_chunks: List[Tuple[int, str]] = []
         self._prepare_chunks()
-        
+
         logger.info(
             f"CombinedTextDataset initialized with mode={mode}, "
             f"chunk_size={chunk_size}, total_chunks={len(self.text_chunks)}"
@@ -132,32 +133,32 @@ class CombinedTextDataset(Dataset):
             sample = self.base[idx]
             entity_context = sample["context"]
             combined_text = " ".join(entity_context.values())
-            
+
             if self.mode == "base":
                 # Single combined text per sample
                 self.text_chunks.append((idx, combined_text))
-            
+
             elif self.mode == "chunking":
                 # Split into word chunks
                 words = combined_text.split()
                 for i in range(0, len(words), self.chunk_size):
-                    chunk = " ".join(words[i:i + self.chunk_size])
+                    chunk = " ".join(words[i : i + self.chunk_size])
                     self.text_chunks.append((idx, chunk))
-            
+
             elif self.mode == "sentence":
                 # Split into sentences
                 sentences = self._split_sentences(combined_text)
                 for sentence in sentences:
                     if sentence.strip():
                         self.text_chunks.append((idx, sentence.strip()))
-            
+
             else:
                 raise ValueError(f"Unknown mode: {self.mode}")
 
     def _split_sentences(self, text: str) -> List[str]:
         """Split text into sentences using simple regex."""
         # Split on . ! ? followed by space or end of string
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         return [s for s in sentences if s.strip()]
 
     def __len__(self) -> int:
@@ -167,17 +168,20 @@ class CombinedTextDataset(Dataset):
         """Return text chunk at index."""
         _, text = self.text_chunks[idx]
         return text
-    
+
     def get_sample_index(self, chunk_idx: int) -> int:
         """Get the original sample index for a chunk index."""
         if chunk_idx >= len(self.text_chunks):
-            raise IndexError(f"Chunk index {chunk_idx} out of range. Available chunks: 0-{len(self.text_chunks)-1}")
+            raise IndexError(
+                f"Chunk index {chunk_idx} out of range. Available chunks: 0-{len(self.text_chunks)-1}"
+            )
         sample_idx, _ = self.text_chunks[chunk_idx]
         return sample_idx
-    
+
     def get_chunks_for_sample(self, sample_idx: int) -> List[Tuple[int, str]]:
         """Get all chunk indices and texts for a given sample index."""
         return [
-            (i, text) for i, (s_idx, text) in enumerate(self.text_chunks)
+            (i, text)
+            for i, (s_idx, text) in enumerate(self.text_chunks)
             if s_idx == sample_idx
         ]

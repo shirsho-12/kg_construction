@@ -1,7 +1,7 @@
 from typing import Union, List, Optional
 from pathlib import Path
 import logging
-from encoder import Encoder
+from .encoder import Encoder
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
 import numpy as np
@@ -211,9 +211,7 @@ class SchemaDefiner:
             json.dump(results, f, indent=2, ensure_ascii=False)
         logger.info("Saved %d triples to %s", len(results), output_path)
 
-    def save_schema_definitions(
-        self, schemas: List[dict], output_path: Union[str, Path]
-    ):
+    def save_schema_definitions(self, schemas, output_path: Union[str, Path]):
         """Save schema definitions for each input text."""
         import json
 
@@ -251,7 +249,7 @@ class SchemaDefiner:
 
 if __name__ == "__main__":
     from config import SD_PROMPT_PATH, SD_FEW_SHOT_EXAMPLES_PATH, BASE_ENCODER_MODEL
-    from dataset import TextDataset
+    from datasets import TextDataset
     from torch.utils.data import DataLoader
     from config import EXAMPLE_DATA_PATH_JSON
 
@@ -306,5 +304,5 @@ if __name__ == "__main__":
             output_path = Path.cwd() / "output" / f"batch_{i}_triplets.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             schema_definer.save_entities_relations_to_json(
-                swapped_triplets, None, output_path
+                swapped_triplets, output_path
             )

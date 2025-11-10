@@ -1,0 +1,32 @@
+{
+  "metrics": {
+    "overall_precision": 0.0,
+    "overall_recall": 0.0,
+    "overall_f1": 0.0,
+    "total_samples": 1,
+    "compositional_precision": 0.0,
+    "compositional_recall": 0.0,
+    "compositional_f1": 0.0
+  },
+  "samples": [
+    {
+      "sample_id": "83bf3b5a0bd911eba7f7acde48001122",
+      "type": "compositional",
+      "question": "When did Lothair Ii's mother die?",
+      "ground_truth_answer": "20 March 851",
+      "extracted_triplets": [],
+      "ground_truth_evidences": [
+        [
+          "Lothair II",
+          "mother",
+          "Ermengarde of Tours"
+        ],
+        [
+          "Ermengarde of Tours",
+          "date of death",
+          "20 March 851"
+        ]
+      ]
+    }
+  ]
+}

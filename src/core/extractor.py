@@ -2,7 +2,7 @@ import nltk
 from collections import defaultdict
 from typing import List, Optional, Tuple, Union
 from config import LOGGING_LEVEL
-from encoder import Encoder
+from .encoder import Encoder
 import logging
 
 logging.basicConfig(level=LOGGING_LEVEL)

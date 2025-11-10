@@ -76,7 +76,7 @@ class Encoder:
                 **model_inputs,
                 generation_config=generation_config,
             )
-        generated_tokens = generated_outputs["sequences"][:, model_inputs["input_ids"].shape[1]:]  # type: ignore
+        generated_tokens = generated_outputs["sequences"][:, model_inputs["input_ids"].shape[1] :]  # type: ignore
         generated_text = self.tokenizer.batch_decode(
             generated_tokens, skip_special_tokens=True
         )
