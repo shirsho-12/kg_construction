@@ -248,7 +248,11 @@ class SchemaDefiner:
 
 
 if __name__ == "__main__":
-    from config import SD_PROMPT_PATH, SD_FEW_SHOT_EXAMPLES_PATH, BASE_ENCODER_MODEL
+    from config import (
+        SD_PROMPT_PATH,
+        SD_FEW_SHOT_EXAMPLES_PATH,
+        BASE_ENCODER_MODEL,
+    )
     from datasets import TextDataset
     from torch.utils.data import DataLoader
     from config import EXAMPLE_DATA_PATH_JSON

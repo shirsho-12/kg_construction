@@ -318,8 +318,8 @@ def run_json_pipeline(
                 # Get all chunk indices for this sample
                 chunk_indices = [
                     idx
-                    for idx, sample_idx in enumerate(combined_ds.text_chunks)
-                    if sample_idx == i
+                    for idx, (s_idx, _) in enumerate(combined_ds.text_chunks)
+                    if s_idx == i
                 ]
                 for chunk_idx in chunk_indices:
                     if chunk_idx < len(synonyms) and synonyms[chunk_idx]:

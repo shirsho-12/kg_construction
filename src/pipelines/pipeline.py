@@ -32,7 +32,6 @@ from torch.utils.data import DataLoader
 from .pipeline_utils import (
     setup_file_logging,
     save_problematic_report,
-    add_problematic_case,
     save_synonyms,
     process_oie_results,
 )
