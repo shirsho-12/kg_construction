@@ -24,7 +24,13 @@ from config import (
     SD_FEW_SHOT_EXAMPLES_PATH,
     SD_PROMPT_PATH,
 )
-from datasets import JSONDataset, GraphConstructionEvaluator, CombinedTextDataset
+from datasets import (
+    JSONDataset, 
+    GraphConstructionEvaluator, 
+    CombinedTextDataset,
+    TwoWikiMultiHopQADataset,
+    HotpotQADataset,
+)
 from core.encoder import Encoder
 from core.oie import OIE
 from core.schema_definer import SchemaDefiner
@@ -49,6 +55,7 @@ def run_json_pipeline(
     compress_if_more_than: int = 30,
     extraction_mode: str = "base",
     chunk_size: int = 100,
+    dataset_type: str = "auto",
 ):
     """
     Run complete JSON pipeline for graph construction and QA.
