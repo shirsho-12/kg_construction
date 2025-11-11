@@ -1,13 +1,10 @@
+# HotpotQA pipeline configuration
+# Inherits defaults from base_config.yaml
+
 mode: json
 pipeline:
   data_path: data/json/hotpotqa.json
   output_dir: output/json/hotpotqa
   dataset_type: hotpotqa
-  use_synonyms: true
-  compression_method: agglomerative
-  compression_threshold: 0.8
-  compress_if_more_than: 30
   extraction_mode: chunking
-  chunk_size: 100
-logging:
-  level: INFO
+  chunk_size: 120

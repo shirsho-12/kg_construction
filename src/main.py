@@ -15,6 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from config_manager import load_config, setup_logging_from_config
 from pipelines.pipeline import run_pipeline
 from pipelines.json_pipeline import run_json_pipeline
 from pipelines.schema_refiner import SchemaRefiner
@@ -22,36 +23,13 @@ from evaluation.qa_system import QASystem
 
 
 def setup_logging(config: Dict[str, Any]):
-    """Setup logging based on config."""
-    log_level = config.get("logging", {}).get("level", "INFO")
-    logging.basicConfig(level=getattr(logging, log_level.upper()))
-    logger = logging.getLogger(__name__)
-    logger.info(f"Logging set to level: {log_level}")
-    return logger
+    """Setup logging based on config - kept for backward compatibility."""
+    return setup_logging_from_config(config)
 
 
-def load_config(config_path: Path) -> Dict[str, Any]:
-    """Load configuration from YAML file."""
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    # Convert relative paths to absolute paths
-    config = resolve_paths(config, config_path.parent)
-    return config
-
-
-def resolve_paths(config: Dict[str, Any], config_dir: Path) -> Dict[str, Any]:
-    """Convert relative paths to absolute paths based on project root."""
-    project_root = Path(__file__).resolve().parent.parent
-
-    if isinstance(config, dict):
-        for key, value in config.items():
-            if key.endswith("_path") or key.endswith("_dir"):
-                if isinstance(value, str) and not Path(value).is_absolute():
-                    config[key] = str((project_root / value).resolve())
-            elif isinstance(value, dict):
-                config[key] = resolve_paths(value, config_dir)
-    return config
+def load_config_legacy(config_path: Path) -> Dict[str, Any]:
+    """Load configuration using the new config manager."""
+    return load_config(config_path)
 
 
 def run_text_pipeline(config: Dict[str, Any], logger):
@@ -59,14 +37,24 @@ def run_text_pipeline(config: Dict[str, Any], logger):
     logger.info("Running text dataset pipeline...")
 
     pipeline_config = config.get("pipeline", {})
+    # Get defaults from pipeline_defaults if not specified in pipeline config
+    defaults = config.get("pipeline_defaults", {})
 
     run_pipeline(
         data_path=Path(pipeline_config.get("data_path")),
         output_dir=Path(pipeline_config.get("output_dir")),
-        use_synonyms=pipeline_config.get("use_synonyms", True),
-        compression_method=pipeline_config.get("compression_method", "agglomerative"),
-        compression_threshold=pipeline_config.get("compression_threshold", 0.8),
-        compress_if_more_than=pipeline_config.get("compress_if_more_than", 30),
+        use_synonyms=pipeline_config.get(
+            "use_synonyms", defaults.get("use_synonyms", True)
+        ),
+        compression_method=pipeline_config.get(
+            "compression_method", defaults.get("compression_method", "agglomerative")
+        ),
+        compression_threshold=pipeline_config.get(
+            "compression_threshold", defaults.get("compression_threshold", 0.8)
+        ),
+        compress_if_more_than=pipeline_config.get(
+            "compress_if_more_than", defaults.get("compress_if_more_than", 30)
+        ),
     )
 
     logger.info("Text pipeline completed successfully!")
@@ -77,17 +65,31 @@ def run_json_pipeline_main(config: Dict[str, Any], logger):
     logger.info("Running JSON dataset pipeline...")
 
     pipeline_config = config.get("pipeline", {})
+    # Get defaults from pipeline_defaults if not specified in pipeline config
+    defaults = config.get("pipeline_defaults", {})
 
     run_json_pipeline(
         data_path=Path(pipeline_config.get("data_path")),
         output_dir=Path(pipeline_config.get("output_dir")),
-        use_synonyms=pipeline_config.get("use_synonyms", True),
-        compression_method=pipeline_config.get("compression_method", "agglomerative"),
-        compression_threshold=pipeline_config.get("compression_threshold", 0.8),
-        compress_if_more_than=pipeline_config.get("compress_if_more_than", 30),
-        extraction_mode=pipeline_config.get("extraction_mode", "base"),
-        chunk_size=pipeline_config.get("chunk_size", 100),
-        dataset_type=pipeline_config.get("dataset_type", "auto"),
+        use_synonyms=pipeline_config.get(
+            "use_synonyms", defaults.get("use_synonyms", True)
+        ),
+        compression_method=pipeline_config.get(
+            "compression_method", defaults.get("compression_method", "agglomerative")
+        ),
+        compression_threshold=pipeline_config.get(
+            "compression_threshold", defaults.get("compression_threshold", 0.8)
+        ),
+        compress_if_more_than=pipeline_config.get(
+            "compress_if_more_than", defaults.get("compress_if_more_than", 30)
+        ),
+        extraction_mode=pipeline_config.get(
+            "extraction_mode", defaults.get("extraction_mode", "base")
+        ),
+        chunk_size=pipeline_config.get("chunk_size", defaults.get("chunk_size", 100)),
+        dataset_type=pipeline_config.get(
+            "dataset_type", defaults.get("dataset_type", "auto")
+        ),
     )
 
     logger.info("JSON pipeline completed successfully!")
