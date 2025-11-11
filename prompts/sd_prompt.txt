@@ -12,9 +12,7 @@ Relations: {relations}
 
 OUTPUT
 --------
-relation_1: description 
-relation_2: description 
-relation_3: description 
+{relation}: description 
 
 Here are some examples:
 {few_shot_examples}
