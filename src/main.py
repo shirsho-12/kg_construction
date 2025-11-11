@@ -117,7 +117,7 @@ def run_schema_refinement(config: Dict[str, Any], logger):
         refiner.refine_schema_triplets_text(
             triplets_file=output_dir
             / refiner_config.get("triplets_file", "triplets.json"),
-            input_file=output_dir / refiner_config.get("input_file", "results.json"),
+            input_file=refiner_config.get("input_file", "results.json"),
             output_dir=output_dir / "schema_refinement",
         )
     elif variant == "triplets_synonyms_text":
@@ -126,7 +126,7 @@ def run_schema_refinement(config: Dict[str, Any], logger):
             / refiner_config.get("triplets_file", "triplets.json"),
             synonyms_file=output_dir
             / refiner_config.get("synonyms_file", "synonyms.json"),
-            input_file=output_dir / refiner_config.get("input_file", "results.json"),
+            input_file=refiner_config.get("input_file", "results.json"),
             output_dir=output_dir / "schema_refinement",
         )
 
