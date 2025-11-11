@@ -89,7 +89,8 @@ class SchemaRefiner:
             # Format: {"sample_id": [...], "sample_id2": [...]}
             return list(data.values())
         elif isinstance(data, list):
-            # Format: [[...], [...]] or [{"subject": ..., "relation": ..., "object": ...}, ...]
+            # Format: [[...], [...]] or [{"subject": ...,
+            # "relation": ..., "object": ...}, ...]
             if all(isinstance(item, list) for item in data):
                 return data
             else:
@@ -153,7 +154,7 @@ class SchemaRefiner:
         try:
             # Use existing JSONDataset to handle the file parsing
             dataset = JSONDataset(file_path, task_type="graph_construction")
-            
+
             # Extract combined texts from the dataset
             texts = []
             for sample in dataset.data:
@@ -165,7 +166,10 @@ class SchemaRefiner:
                     # Context is list of [entity, sentences]
                     sentences = []
                     for entity_sentences in sample["context"]:
-                        if isinstance(entity_sentences, list) and len(entity_sentences) >= 2:
+                        if (
+                            isinstance(entity_sentences, list)
+                            and len(entity_sentences) >= 2
+                        ):
                             sentences.extend(entity_sentences[1])
                     combined_text = " ".join(sentences)
                     texts.append(combined_text)
@@ -178,7 +182,7 @@ class SchemaRefiner:
 
             logger.info(f"Loaded {len(texts)} input texts from {file_path}")
             return texts
-            
+
         except Exception as e:
             logger.error(f"Failed to load input texts using JSONDataset: {e}")
             return []

@@ -1,6 +1,7 @@
 """
 Graph construction evaluator for comparing predicted triplets with ground truth.
 """
+
 from typing import Dict, List, Tuple, Any
 import logging
 
@@ -21,11 +22,11 @@ class GraphConstructionEvaluator:
     ) -> Dict[str, float]:
         """
         Evaluate predicted triplets against ground truth evidences.
-        
+
         Args:
             predicted_triplets: List of (entity, relation, entity) triplets
             ground_truth_evidences: List of (entity, relation, entity) evidences
-            
+
         Returns:
             Dictionary with precision, recall, f1 scores
         """
@@ -83,11 +84,11 @@ class GraphConstructionEvaluator:
     ) -> Dict[str, Any]:
         """
         Evaluate entire dataset.
-        
+
         Args:
             dataset: JSONDataset with evidences
             predicted_triplets_list: List of predicted triplets for each sample
-            
+
         Returns:
             Overall evaluation metrics
         """

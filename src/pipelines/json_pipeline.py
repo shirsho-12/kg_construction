@@ -32,6 +32,17 @@ from .pipeline_utils import (
     add_problematic_case,
 )
 
+from config import (
+    BASE_ENCODER_MODEL,
+    OIE_FEW_SHOT_EXAMPLES_PATH,
+    OIE_PROMPT_PATH,
+    OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
+    OIE_SYNONYMY_PROMPT_PATH,
+    SD_FEW_SHOT_EXAMPLES_PATH,
+    SD_PROMPT_PATH,
+    LOGGING_LEVEL,
+)
+
 # Initialize config manager and get configuration
 config_manager = get_config_manager()
 base_config = config_manager.base_config
