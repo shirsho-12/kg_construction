@@ -12,7 +12,7 @@ Variants:
 3. Triplets + synonyms + input text
 """
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 import logging
 import json
 import argparse
@@ -133,7 +133,7 @@ class SchemaRefiner:
         else:
             raise ValueError(f"Unsupported synonyms format in {file_path}")
 
-    def load_input_texts_from_file(self, file_path: Path) -> List[str]:
+    def load_input_texts_from_file(self, file_path: Union[str, Path]) -> List[str]:
         """
         Load input texts from JSON file.
 
@@ -143,6 +143,8 @@ class SchemaRefiner:
         Returns:
             List of input texts per sample
         """
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
         if not file_path.exists():
             logger.warning(f"Input texts file not found: {file_path}")
             return []
