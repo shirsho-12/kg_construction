@@ -5,7 +5,6 @@ Supports both text and JSON dataset pipelines with YAML configuration.
 """
 import yaml
 import argparse
-import logging
 from pathlib import Path
 from typing import Dict, Any
 import sys
@@ -268,16 +267,25 @@ def main():
         epilog="""
 Examples:
   # Run text pipeline
-  python src/main.py --config configs/text_pipeline.yaml
+  python src/main.py --config config_templates/text_pipeline.yaml
   
-  # Run JSON pipeline
-  python src/main.py --config configs/json_pipeline.yaml
+  # Run JSON pipeline with auto-detection
+  python src/main.py --config config_templates/json_pipeline.yaml
+  
+  # Run 2WikiMultiHopQA pipeline
+  python src/main.py --config config_templates/2wikimultihopqa_pipeline.yaml
+  
+  # Run HotpotQA pipeline
+  python src/main.py --config config_templates/hotpotqa_pipeline.yaml
   
   # Run schema refinement
-  python src/main.py --config configs/schema_refinement.yaml
+  python src/main.py --config config_templates/schema_refinement.yaml
   
   # Run QA evaluation
-  python src/main.py --config configs/qa_evaluation.yaml
+  python src/main.py --config config_templates/qa_evaluation.yaml
+  
+  # Create example configuration files
+  python src/main.py --create-configs
         """,
     )
 
