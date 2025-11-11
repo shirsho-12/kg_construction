@@ -1,0 +1,13 @@
+mode: json
+pipeline:
+  data_path: data/json/2wikimultihopqa.json
+  output_dir: output/json/2wikimultihopqa
+  dataset_type: 2wikimultihopqa
+  use_synonyms: true
+  compression_method: agglomerative
+  compression_threshold: 0.8
+  compress_if_more_than: 30
+  extraction_mode: chunking
+  chunk_size: 100
+logging:
+  level: INFO

@@ -87,6 +87,7 @@ def run_json_pipeline_main(config: Dict[str, Any], logger):
         compress_if_more_than=pipeline_config.get("compress_if_more_than", 30),
         extraction_mode=pipeline_config.get("extraction_mode", "base"),
         chunk_size=pipeline_config.get("chunk_size", 100),
+        dataset_type=pipeline_config.get("dataset_type", "auto"),
     )
 
     logger.info("JSON pipeline completed successfully!")

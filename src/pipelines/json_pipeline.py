@@ -25,8 +25,8 @@ from config import (
     SD_PROMPT_PATH,
 )
 from datasets import (
-    JSONDataset, 
-    GraphConstructionEvaluator, 
+    JSONDataset,
+    GraphConstructionEvaluator,
     CombinedTextDataset,
     TwoWikiMultiHopQADataset,
     HotpotQADataset,
@@ -44,6 +44,39 @@ from .pipeline_utils import (
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
+
+
+def _get_dataset_class(data_path: Path, dataset_type: str):
+    """
+    Determine the appropriate dataset class based on dataset_type or auto-detection.
+
+    Args:
+        data_path: Path to the data file
+        dataset_type: Dataset type specifier
+
+    Returns:
+        Dataset class to use
+    """
+    if dataset_type == "auto":
+        # Auto-detect based on filename or content
+        filename = data_path.name.lower()
+        if "2wiki" in filename or "multihop" in filename:
+            logger.info("Auto-detected 2WikiMultiHopQA dataset format")
+            return TwoWikiMultiHopQADataset
+        elif "hotpot" in filename:
+            logger.info("Auto-detected HotpotQA dataset format")
+            return HotpotQADataset
+        else:
+            logger.info("Using generic JSONDataset format")
+            return JSONDataset
+    elif dataset_type == "2wikimultihopqa":
+        return TwoWikiMultiHopQADataset
+    elif dataset_type == "hotpotqa":
+        return HotpotQADataset
+    elif dataset_type == "generic":
+        return JSONDataset
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 
 def run_json_pipeline(
@@ -74,6 +107,8 @@ def run_json_pipeline(
         compress_if_more_than: Minimum relations before compression
         extraction_mode: Mode for text extraction - "base", "chunking", or "sentence"
         chunk_size: Number of words per chunk (for chunking mode)
+        dataset_type: Type of dataset - "auto", "2wikimultihopqa", "hotpotqa", or
+                      "generic"
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_file_logging(output_dir, "json_pipeline_errors.log")
@@ -107,11 +142,14 @@ def run_json_pipeline(
     # Initialize evaluator
     evaluator = GraphConstructionEvaluator(encoder=encoder)
 
-    # Load datasets
-    graph_dataset = JSONDataset(data_path, task_type="graph_construction")
-    qa_dataset = JSONDataset(data_path, task_type="qa")
+    # Determine and load appropriate datasets
+    dataset_class = _get_dataset_class(data_path, dataset_type)
+    graph_dataset = dataset_class(data_path, task_type="graph_construction")
+    qa_dataset = dataset_class(data_path, task_type="qa")
 
-    logger.info(f"Loaded {len(graph_dataset)} samples for processing")
+    logger.info(
+        f"Loaded {len(graph_dataset)} samples for processing using {dataset_class.__name__}"
+    )
 
     # Track problematic cases
     problematic_cases: List[Dict[str, Any]] = []

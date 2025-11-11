@@ -1,0 +1,37 @@
+# Base configuration for KG Construction pipelines
+# This file contains default settings that are inherited by specific pipeline configs
+
+# Model configuration
+model:
+  cache_dir: model_cache
+  base_encoder_model: ministral/Ministral-3b-instruct
+  mistral_max_length: 4096
+
+# Default data paths (can be overridden in specific configs)
+data:
+  text_example: data/text/example.txt
+  json_example: data/json/test.json
+
+# Prompt paths
+prompts:
+  oie_prompt: prompts/oie_prompt.txt
+  oie_synonyms_prompt: prompts/oie_synonyms_prompt.txt
+  oie_example: prompts/oie_example.txt
+  oie_example_synonyms: prompts/oie_example_synonyms.txt
+  sd_prompt: prompts/sd_prompt.txt
+  sd_example: prompts/sd_example.txt
+
+# Default logging configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Default pipeline settings
+pipeline_defaults:
+  use_synonyms: true
+  compression_method: agglomerative
+  compression_threshold: 0.8
+  compress_if_more_than: 30
+  extraction_mode: base
+  chunk_size: 100
+  dataset_type: auto
