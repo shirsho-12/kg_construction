@@ -26,6 +26,7 @@ from config import (
     SD_PROMPT_PATH,
     LOGGING_LEVEL,
 )
+from datasets import JSONDataset
 
 logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
@@ -135,7 +136,7 @@ class SchemaRefiner:
 
     def load_input_texts_from_file(self, file_path: Union[str, Path]) -> List[str]:
         """
-        Load input texts from JSON file.
+        Load input texts from JSON file using existing JSONDataset.
 
         Args:
             file_path: Path to file containing input texts
@@ -149,40 +150,38 @@ class SchemaRefiner:
             logger.warning(f"Input texts file not found: {file_path}")
             return []
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            # Use existing JSONDataset to handle the file parsing
+            dataset = JSONDataset(file_path, task_type="graph_construction")
+            
+            # Extract combined texts from the dataset
+            texts = []
+            for sample in dataset.data:
+                if "context" in sample and isinstance(sample["context"], dict):
+                    # Combine all context values for this sample
+                    combined_text = " ".join(sample["context"].values())
+                    texts.append(combined_text)
+                elif "context" in sample and isinstance(sample["context"], list):
+                    # Context is list of [entity, sentences]
+                    sentences = []
+                    for entity_sentences in sample["context"]:
+                        if isinstance(entity_sentences, list) and len(entity_sentences) >= 2:
+                            sentences.extend(entity_sentences[1])
+                    combined_text = " ".join(sentences)
+                    texts.append(combined_text)
+                else:
+                    # Fallback: try to find any text field
+                    for value in sample.values():
+                        if isinstance(value, str) and len(value) > 50:
+                            texts.append(value)
+                            break
 
-        # Extract texts from different formats
-        texts = []
-        if isinstance(data, dict):
-            # Try to find text content
-            for key, value in data.items():
-                if (
-                    isinstance(value, str) and len(value) > 50
-                ):  # Assume long strings are texts
-                    texts.append(value)
-                elif isinstance(value, dict) and "context" in value:
-                    # JSON dataset format
-                    context = value["context"]
-                    if isinstance(context, dict):
-                        # Combine all context values
-                        combined_text = " ".join(context.values())
-                        texts.append(combined_text)
-                    elif isinstance(context, str):
-                        texts.append(context)
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, str) and len(item) > 50:
-                    texts.append(item)
-                elif isinstance(item, dict) and "context" in item:
-                    context = item["context"]
-                    if isinstance(context, dict):
-                        combined_text = " ".join(context.values())
-                        texts.append(combined_text)
-                    elif isinstance(context, str):
-                        texts.append(context)
-
-        return texts
+            logger.info(f"Loaded {len(texts)} input texts from {file_path}")
+            return texts
+            
+        except Exception as e:
+            logger.error(f"Failed to load input texts using JSONDataset: {e}")
+            return []
 
     def refine_schema_triplets_only(
         self, triplets_file: Path, output_dir: Path
