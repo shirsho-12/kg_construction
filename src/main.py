@@ -144,10 +144,14 @@ def run_qa_evaluation(config: Dict[str, Any], logger):
 
     dataset = JSONDataset(Path(qa_config.get("data_path")), task_type="qa")
 
+    dataset = JSONDataset(Path(qa_config.get("data_path")), task_type="qa")
+
     # Initialize QA system
     qa_system = QASystem()
 
     # Load knowledge graph
+    qa_system.load_knowledge_graph_from_file(Path(qa_config.get("triplets_file")))
+
     qa_system.load_knowledge_graph_from_file(Path(qa_config.get("triplets_file")))
 
     # Evaluate both methods
@@ -180,8 +184,8 @@ def create_example_configs():
     text_config = {
         "mode": "text",
         "pipeline": {
-            "data_path": f"data/text/{file_name}.txt",
-            "output_dir": f"output/text/{file_name}",
+            "data_path": "data/text/" + file_name + ".txt",
+            "output_dir": "output/text/" + file_name,
             "use_synonyms": True,
             "compression_method": "agglomerative",
             "compression_threshold": 0.8,
@@ -197,8 +201,8 @@ def create_example_configs():
     json_config = {
         "mode": "json",
         "pipeline": {
-            "data_path": f"data/json/{file_name}.json",
-            "output_dir": f"output/json/{file_name}",
+            "data_path": "data/json/" + file_name + ".json",
+            "output_dir": "output/json/" + file_name,
             "use_synonyms": True,
             "compression_method": "agglomerative",
             "compression_threshold": 0.8,
@@ -216,7 +220,7 @@ def create_example_configs():
     schema_config = {
         "mode": "schema_refiner",
         "schema_refiner": {
-            "output_dir": f"output/json/{file_name}",
+            "output_dir": "output/json/" + file_name,
             "variant": "triplets_synonyms_text",
             "triplets_file": "triplets.json",
             "synonyms_file": "synonyms.json",
@@ -235,9 +239,9 @@ def create_example_configs():
     qa_config = {
         "mode": "qa_evaluation",
         "qa_evaluation": {
-            "data_path": f"data/json/{file_name}.json",
-            "triplets_file": "output/json/{file_name}/triplets.json",
-            "output_dir": "output/json/{file_name}",
+            "data_path": "data/json/" + file_name + ".json",
+            "triplets_file": "output/json/" + file_name + "/triplets.json",
+            "output_dir": "output/json/" + file_name,
         },
         "logging": {"level": "INFO"},
     }
