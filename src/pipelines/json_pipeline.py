@@ -227,8 +227,8 @@ def run_json_pipeline(
             "schema_definition": {},
             "compressed_schema": {},
             "synonyms": {},
-            "entities": set(),
-            "relations": set(),
+            "entities": [],
+            "relations": [],
         }
 
         # Use aggregated triplets for this sample
@@ -249,22 +249,28 @@ def run_json_pipeline(
         # Apply schema processing independently for this _id
         try:
             # Extract entities and relations from triplets for this sample only
-            sample_entities = set()
-            sample_relations = set()
+            sample_entities = []
+            sample_relations = []
             for triplet in extracted_triplets:
                 if isinstance(triplet, (list, tuple)) and len(triplet) >= 3:
-                    sample_entities.add(triplet[0])
-                    sample_relations.add(triplet[1])
-                    sample_entities.add(triplet[2])
+                    if triplet[0] not in sample_entities:
+                        sample_entities.append(triplet[0])
+                    if triplet[1] not in sample_relations:
+                        sample_relations.append(triplet[1])
+                    if triplet[2] not in sample_entities:
+                        sample_entities.append(triplet[2])
                 elif isinstance(triplet, str) and "#SEP" in triplet:
                     parts = triplet.split("#SEP")
                     if len(parts) >= 3:
-                        sample_entities.add(parts[0])
-                        sample_relations.add(parts[1])
-                        sample_entities.add(parts[2])
+                        if parts[0] not in sample_entities:
+                            sample_entities.append(parts[0])
+                        if parts[1] not in sample_relations:
+                            sample_relations.append(parts[1])
+                        if parts[2] not in sample_entities:
+                            sample_entities.append(parts[2])
 
-            results_by_id[sample_id]["entities"] = list(sample_entities)
-            results_by_id[sample_id]["relations"] = list(sample_relations)
+            results_by_id[sample_id]["entities"] = sample_entities
+            results_by_id[sample_id]["relations"] = sample_relations
 
             # Schema definition for this sample only
             combined_text = " ".join(entity_context.values())
