@@ -256,16 +256,6 @@ def main():
         help="Path to pre-extracted synonyms JSON file",
     )
     parser.add_argument(
-        "--contexts-path",
-        type=str,
-        help="Path to pre-extracted contexts JSON file",
-    )
-    parser.add_argument(
-        "--triplets-path",
-        type=str,
-        help="Path to pre-extracted triplets JSON file",
-    )
-    parser.add_argument(
         "--similarity-threshold",
         type=float,
         default=0.8,
