@@ -2,9 +2,6 @@ from typing import Union, List
 from pathlib import Path
 from .encoder import Encoder
 from .faiss_schema_compressor import FaissSchemaCompressor
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
-import numpy as np
 from utils import logger
 
 
@@ -169,37 +166,29 @@ class SchemaDefiner:
             return {rel: schema[rel] for rel in valid_relations}
 
         try:
-            embeddings = self.model.encode(valid_definitions).cpu().numpy()
-            logger.debug(f"Generated embeddings with shape: {embeddings.shape}")
+            # Create valid schema subset for FAISS compression
+            valid_schema = {rel: schema[rel] for rel in valid_relations}
 
             if method == "faiss_max_size" and max_size is not None:
                 compressed_schema = self.faiss_compressor.compress_by_max_size(
-                    {rel: schema[rel] for rel in valid_relations}, 
+                    valid_schema, 
                     max_size=max_size,
                     merge_strategy=merge_strategy
                 )
             elif method == "faiss_ratio" and compression_ratio is not None:
                 compressed_schema = self.faiss_compressor.compress_by_ratio(
-                    {rel: schema[rel] for rel in valid_relations}, 
+                    valid_schema, 
                     compression_ratio=compression_ratio,
                     merge_strategy=merge_strategy
                 )
             elif method == "faiss_similarity":
                 compressed_schema = self.faiss_compressor.compress_by_similarity_groups(
-                    {rel: schema[rel] for rel in valid_relations}, 
+                    valid_schema, 
                     similarity_threshold=threshold,
                     merge_strategy=merge_strategy
                 )
-            elif method == "agglomerative":
-                compressed_schema = self._agglomerative_compress(
-                    valid_relations, valid_definitions, embeddings, threshold
-                )
-            elif method == "hdbscan":
-                compressed_schema = self._hdbscan_compress(
-                    valid_relations, valid_definitions, embeddings
-                )
             else:
-                raise ValueError(f"Unknown compression method: {method}")
+                raise ValueError(f"Unknown compression method: {method}. Available methods: 'faiss_max_size', 'faiss_ratio', 'faiss_similarity'")
 
             compressed_count = len(compressed_schema)
             compression_ratio = (
@@ -232,76 +221,6 @@ class SchemaDefiner:
             logger.info("Returning original schema due to compression failure")
             return schema
 
-    def _agglomerative_compress(self, relations, definitions, embeddings, threshold):
-        logger.debug(f"Running agglomerative clustering with threshold {threshold}")
-
-        clusterer = AgglomerativeClustering(
-            n_clusters=None,
-            metric="cosine",
-            linkage="average",
-            distance_threshold=threshold,
-        )
-        cluster_labels = clusterer.fit_predict(embeddings)
-
-        logger.debug(f"Cluster labels: {cluster_labels}")
-        unique_clusters = set(cluster_labels)
-        logger.debug(f"Found {len(unique_clusters)} unique clusters")
-
-        compressed_schema = {}
-        clusters_info = {}
-
-        for cluster_id in unique_clusters:
-            cluster_indices = np.where(cluster_labels == cluster_id)[0]
-            if len(cluster_indices) == 0:
-                continue
-
-            cluster_relations = [relations[i] for i in cluster_indices]
-            cluster_definitions = [definitions[i] for i in cluster_indices]
-
-            # Log cluster information
-            clusters_info[int(cluster_id)] = {
-                "relations": cluster_relations,
-                "count": len(cluster_relations),
-            }
-
-            if len(cluster_indices) == 1:
-                # Single item cluster, keep as is
-                logger.debug(
-                    f"Single-item cluster {cluster_id}: {cluster_relations[0]}"
-                )
-                compressed_schema[cluster_relations[0]] = cluster_definitions[0]
-            else:
-                # Multiple items in cluster, choose representative
-                representative_idx = cluster_indices[0]
-                representative_relation = relations[representative_idx]
-                representative_definition = definitions[representative_idx]
-
-                logger.debug(
-                    f"Multi-item cluster {cluster_id} (size {len(cluster_indices)}): "
-                    f"representative={representative_relation}, "
-                    f"all_relations={cluster_relations}"
-                )
-
-                compressed_schema[representative_relation] = representative_definition
-
-        logger.debug(f"Clustering details: {clusters_info}")
-        return compressed_schema
-
-    def _hdbscan_compress(self, relations, definitions, embeddings):
-        clusterer = HDBSCAN(
-            min_cluster_size=2, metric="cosine", allow_single_cluster=True
-        )
-        cluster_labels = clusterer.fit_predict(embeddings)
-        compressed_schema = {}
-        for cluster_id in set(cluster_labels):
-            cluster_indices = np.where(cluster_labels == cluster_id)[0]
-            if len(cluster_indices) == 0:
-                continue
-            representative_idx = cluster_indices[0]
-            representative_relation = relations[representative_idx]
-            representative_definition = definitions[representative_idx]
-            compressed_schema[representative_relation] = representative_definition
-        return compressed_schema
 
     def swap_relations_to_compressed(
         self, oie_triplets: list, original_to_compressed_map: dict

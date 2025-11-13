@@ -150,6 +150,8 @@ def run_pipeline(
                 unified_schema,
                 method=compression_method,
                 threshold=compression_threshold,
+                max_size=None,
+                compression_ratio=None,
             )
 
             if compressed_schema:

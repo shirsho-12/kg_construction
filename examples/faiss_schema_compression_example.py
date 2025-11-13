@@ -92,6 +92,11 @@ def example_faiss_compression():
     print(f"Ratio (40%): {len(compressed_ratio)} relations") 
     print(f"Similarity (0.6): {len(compressed_similarity)} relations")
     
+    print(f"\n--- Available FAISS Compression Methods ---")
+    print("1. faiss_max_size - Compress to exact maximum number of relations")
+    print("2. faiss_ratio - Compress by percentage (e.g., 0.4 = 40% of original)")
+    print("3. faiss_similarity - Group by similarity threshold")
+    
     print("\n=== FAISS compression provides precise control over schema size! ===")
 
 

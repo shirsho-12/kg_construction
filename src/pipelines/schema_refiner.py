@@ -37,7 +37,7 @@ class SchemaRefiner:
 
     def __init__(
         self,
-        compression_method: str = "agglomerative",
+        compression_method: str = "faiss_similarity",
         compression_threshold: float = 0.8,
         compress_if_more_than: int = 30,
         max_schema_size: int = None,
