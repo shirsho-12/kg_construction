@@ -40,6 +40,8 @@ class SchemaRefiner:
         compression_method: str = "agglomerative",
         compression_threshold: float = 0.8,
         compress_if_more_than: int = 30,
+        max_schema_size: int = None,
+        compression_ratio: float = None,
     ):
         """
         Initialize schema refiner.
@@ -52,6 +54,8 @@ class SchemaRefiner:
         self.compression_method = compression_method
         self.compression_threshold = compression_threshold
         self.compress_if_more_than = compress_if_more_than
+        self.max_schema_size = max_schema_size
+        self.compression_ratio = compression_ratio
 
         # Initialize components
         self.encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
@@ -224,6 +228,8 @@ class SchemaRefiner:
                         schema,
                         method=self.compression_method,
                         threshold=self.compression_threshold,
+                        max_size=self.max_schema_size,
+                        compression_ratio=self.compression_ratio,
                     )
                     if compressed_schema:
                         logger.info(f"Compressed to {len(compressed_schema)} relations")
@@ -297,6 +303,8 @@ class SchemaRefiner:
                         schema,
                         method=self.compression_method,
                         threshold=self.compression_threshold,
+                        max_size=self.max_schema_size,
+                        compression_ratio=self.compression_ratio,
                     )
                     if compressed_schema:
                         logger.info(f"Compressed to {len(compressed_schema)} relations")
@@ -384,6 +392,8 @@ class SchemaRefiner:
                         schema,
                         method=self.compression_method,
                         threshold=self.compression_threshold,
+                        max_size=self.max_schema_size,
+                        compression_ratio=self.compression_ratio,
                     )
                     if compressed_schema:
                         logger.info(f"Compressed to {len(compressed_schema)} relations")

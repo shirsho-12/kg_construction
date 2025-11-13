@@ -1,6 +1,7 @@
 from typing import Union, List
 from pathlib import Path
 from .encoder import Encoder
+from .faiss_schema_compressor import FaissSchemaCompressor
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
 import numpy as np
@@ -17,6 +18,7 @@ class SchemaDefiner:
         self.model = model
         self.schema_prompt = open(schema_prompt_path).read()
         self.schema_few_shot_examples = open(schema_few_shot_examples_path).read()
+        self.faiss_compressor = FaissSchemaCompressor(encoder=model)
         logger.debug(
             "SchemaDefiner initialized with schema prompt path: %s", schema_prompt_path
         )
@@ -119,7 +121,15 @@ class SchemaDefiner:
         text = re.sub(r"^\d+[\.\)]\s*", "", text)
         return text
 
-    def compress_schema(self, schema: dict, threshold=0.8, method="agglomerative"):
+    def compress_schema(
+        self, 
+        schema: dict, 
+        threshold=0.8, 
+        method="agglomerative",
+        max_size: int = None,
+        compression_ratio: float = None,
+        merge_strategy: str = "most_similar"
+    ):
         if not schema:
             logger.warning("Empty schema provided; skipping compression.")
             return {}
@@ -162,7 +172,25 @@ class SchemaDefiner:
             embeddings = self.model.encode(valid_definitions).cpu().numpy()
             logger.debug(f"Generated embeddings with shape: {embeddings.shape}")
 
-            if method == "agglomerative":
+            if method == "faiss_max_size" and max_size is not None:
+                compressed_schema = self.faiss_compressor.compress_by_max_size(
+                    {rel: schema[rel] for rel in valid_relations}, 
+                    max_size=max_size,
+                    merge_strategy=merge_strategy
+                )
+            elif method == "faiss_ratio" and compression_ratio is not None:
+                compressed_schema = self.faiss_compressor.compress_by_ratio(
+                    {rel: schema[rel] for rel in valid_relations}, 
+                    compression_ratio=compression_ratio,
+                    merge_strategy=merge_strategy
+                )
+            elif method == "faiss_similarity":
+                compressed_schema = self.faiss_compressor.compress_by_similarity_groups(
+                    {rel: schema[rel] for rel in valid_relations}, 
+                    similarity_threshold=threshold,
+                    merge_strategy=merge_strategy
+                )
+            elif method == "agglomerative":
                 compressed_schema = self._agglomerative_compress(
                     valid_relations, valid_definitions, embeddings, threshold
                 )
