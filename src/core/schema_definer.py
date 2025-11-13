@@ -29,7 +29,7 @@ class SchemaDefiner:
     def run(self, input_text: str, oie_triplets: list):
         logger.debug("Defining schema for input text: %s", input_text)
         schema_definition_dct = []
-        for idx, oie_triplets in tqdm(enumerate(oie_triplets), desc="Defining schema"):
+        for idx, oie_triplets in enumerate(oie_triplets):
             logger.debug("OIE Triplets for input %d: %s", idx, oie_triplets)
             defined_schema = self.define_schema(input_text, oie_triplets)
             schema_definition_dct.append(defined_schema)
