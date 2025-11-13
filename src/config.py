@@ -4,12 +4,12 @@ from pathlib import Path
 
 # Model configuration
 MISTRAL_MAX_LENGTH = 4096
-MODEL_CACHE_DIR = Path.cwd() / "model_cache"
-BASE_ENCODER_MODEL = "ministral/Ministral-3b-instruct"
+MODEL_CACHE_DIR = Path.cwd().parent / "edc" / "model_cache"
+BASE_ENCODER_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
 
 # Data paths
 EXAMPLE_DATA_PATH_TEXT = Path.cwd() / "data/text/example.txt"
-EXAMPLE_DATA_PATH_JSON = Path.cwd() / "data/json/test.json"
+EXAMPLE_DATA_PATH_JSON = Path.cwd() / "data/qa/test.json"
 
 # Prompt paths
 OIE_PROMPT_PATH = Path.cwd() / "prompts/oie_prompt.txt"

@@ -3,8 +3,8 @@
 
 mode: json
 pipeline:
-  data_path: data/json/hotpotqa.json
-  output_dir: output/json/hotpotqa
+  data_path: data/qa/hotpotqa.json
+  output_dir: output/qa/hotpotqa
   dataset_type: hotpotqa
   extraction_mode: chunking
   chunk_size: 120

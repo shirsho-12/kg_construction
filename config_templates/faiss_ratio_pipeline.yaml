@@ -3,7 +3,7 @@
 
 mode: json
 pipeline:
-  data_path: data/json/test.json
+  data_path: data/qa/test.json
   output_dir: output/faiss_tests/ratio
   dataset_type: auto
   extraction_mode: base
