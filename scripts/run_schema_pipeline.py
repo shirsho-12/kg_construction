@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import logging
 
+
 # Add src to path for imports
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
@@ -28,17 +29,14 @@ from config import (
     BASE_ENCODER_MODEL,
     SD_FEW_SHOT_EXAMPLES_PATH,
     SD_PROMPT_PATH,
-    OIE_PROMPT_PATH,
-    OIE_SYNONYMY_PROMPT_PATH,
-    OIE_FEW_SHOT_EXAMPLES_PATH,
 )
 
 from core.encoder import Encoder
 from core.schema_definer import SchemaDefiner
-from core.oie import OIE
 from datasets.json_dataset import JSONDataset
 from datasets.hotpotqa_dataset import HotpotQADataset
 from datasets.two_wiki_multihopqa_dataset import TwoWikiMultiHopQADataset
+from pipelines import SchemaRefiner
 
 # Configure logging
 logging.basicConfig(
@@ -62,93 +60,6 @@ def get_dataset_class(dataset_type: str):
         )
 
     return dataset_classes[dataset_type.lower()]
-
-
-def extract_triplets_and_synonyms(
-    dataset: JSONDataset,
-    oie: OIE,
-    use_synonyms: bool = True,
-    max_samples: Optional[int] = None,
-) -> tuple[List[List[tuple]], List[str]]:
-    """Extract triplets and synonyms from dataset samples."""
-    logger.info(f"Extracting triplets from dataset with {len(dataset)} samples")
-
-    all_triplets = []
-    all_contexts = []
-
-    # Process samples (limit if specified)
-    num_samples = min(len(dataset), max_samples) if max_samples else len(dataset)
-
-    for i in range(num_samples):
-        sample = dataset[i]
-        try:
-            logger.debug(f"Processing sample {i}: {sample}")
-            context = sample.get("context", "")
-            logger.debug(f"Raw context: {context} (type: {type(context)})")
-
-            if isinstance(context, list):
-                # Handle context as list of [entity, sentences] pairs (HotpotQA format)
-                context_text = " ".join(
-                    [
-                        " ".join(sentences)
-                        if isinstance(sentences, list)
-                        else str(sentences)
-                        for entity, sentences in context
-                    ]
-                )
-            elif isinstance(context, dict) and context:
-                # Handle context as dict of entity: sentences (processed by JSONDataset)
-                context_text = " ".join(
-                    [f"{entity}: {sentences}" for entity, sentences in context.items()]
-                )
-            elif isinstance(context, dict) and not context:
-                # Empty dict from JSONDataset - try to get original context from raw data
-                raw_sample = dataset.data[i]  # Access raw data
-                original_context = raw_sample.get("context", "")
-                context_text = str(original_context) if original_context else ""
-            else:
-                # Handle context as simple string
-                context_text = str(context)
-
-            logger.debug(f"Processed context text: {context_text}")
-
-            if not context_text.strip():
-                logger.warning(f"Empty context for sample {i}, skipping")
-                continue
-
-            all_contexts.append(context_text)
-
-            # Extract triplets from context using OIE's extractor
-            if use_synonyms:
-                result = oie.extractor.extract_with_synonyms(
-                    input_text=context_text,
-                    prompt_template=oie.prompt_template,
-                    few_shot_examples=oie.few_shot_examples,
-                    return_synonyms=True,
-                )
-                if isinstance(result, tuple):
-                    triplets, synonyms = result
-                else:
-                    triplets = result
-            else:
-                triplets = oie.extractor.extract(
-                    input_text=context_text,
-                    prompt_template=oie.prompt_template,
-                    few_shot_examples=oie.few_shot_examples,
-                )
-
-            all_triplets.append(triplets if isinstance(triplets, list) else [])
-
-            if (i + 1) % 10 == 0:
-                logger.info(f"Processed {i + 1}/{num_samples} samples")
-
-        except Exception as e:
-            logger.error(f"Error processing sample {i}: {e}")
-            all_triplets.append([])  # Add empty list to maintain alignment
-            continue
-
-    logger.info(f"Extracted triplets from {len(all_triplets)} samples")
-    return all_triplets, all_contexts
 
 
 def run_schema_definition(
@@ -335,6 +246,26 @@ def main():
         help="Compression ratio for faiss_ratio method (e.g., 0.5 for 50%)",
     )
     parser.add_argument(
+        "--triplets-path",
+        type=str,
+        help="Path to pre-extracted triplets JSON file",
+    )
+    parser.add_argument(
+        "--synonyms-path",
+        type=str,
+        help="Path to pre-extracted synonyms JSON file",
+    )
+    parser.add_argument(
+        "--contexts-path",
+        type=str,
+        help="Path to pre-extracted contexts JSON file",
+    )
+    parser.add_argument(
+        "--triplets-path",
+        type=str,
+        help="Path to pre-extracted triplets JSON file",
+    )
+    parser.add_argument(
         "--similarity-threshold",
         type=float,
         default=0.8,
@@ -357,9 +288,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Handle synonym flags
-    use_synonyms = args.use_synonyms and not args.no_synonyms
-
     # Validate paths
     input_path = Path(args.input)
     if not input_path.exists():
@@ -378,14 +306,6 @@ def main():
 
         # Initialize encoder
         encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
-
-        # Initialize OIE extractor
-        oie = OIE(
-            encoder=encoder,
-            prompt_template_file=OIE_PROMPT_PATH,
-            few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
-            synonymy=use_synonyms,
-        )
 
         # Initialize schema definer
         schema_definer = SchemaDefiner(
@@ -406,22 +326,27 @@ def main():
             "samples_processed": min(len(dataset), args.max_samples or len(dataset)),
         }
 
-        # Extract triplets and synonyms
-        triplets_list, contexts = extract_triplets_and_synonyms(
-            dataset, oie, use_synonyms, args.max_samples
+        schema_refiner = SchemaRefiner(
+            model=encoder,
+            schema_prompt_path=SD_PROMPT_PATH,
+            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
         )
 
-        if not triplets_list or not any(triplets_list):
-            logger.warning("No triplets extracted from dataset")
+        # Extract triplets and synonyms
+        triplets = schema_refiner.load_triplets_from_file(args.triplets_path)
+        synonyms = schema_refiner.load_synonyms_from_file(args.synonyms_path)
+
+        if not triplets or not synonyms:
+            logger.warning("No triplets or synonyms extracted from dataset")
             logger.info("Creating empty results for demonstration purposes")
-            
+
             # Create minimal demo results
             original_schema = {}
             compressed_schema = {}
         else:
             # Run schema definition
-            original_schema = run_schema_definition(schema_definer, triplets_list, contexts)
-            
+            original_schema = run_schema_definition(schema_definer, triplets, synonyms)
+
             if not original_schema:
                 logger.warning("No schema generated from triplets")
                 original_schema = {}
@@ -432,9 +357,13 @@ def main():
                     schema_definer,
                     original_schema,
                     compression_method=args.compression_method,
-                    max_size=args.max_size if args.compression_method == "faiss_max_size" else None,
+                    max_size=(
+                        args.max_size
+                        if args.compression_method == "faiss_max_size"
+                        else None
+                    ),
                     compression_ratio=args.compression_ratio,
-                    similarity_threshold=args.similarity_threshold
+                    similarity_threshold=args.similarity_threshold,
                 )
 
         # Save results
@@ -442,8 +371,8 @@ def main():
             output_dir,
             original_schema,
             compressed_schema,
-            triplets_list,
-            contexts,
+            triplets,
+            synonyms,
             dataset_info,
         )
 
