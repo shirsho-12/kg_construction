@@ -8,3 +8,9 @@ pipeline:
   dataset_type: hotpotqa
   extraction_mode: chunking
   chunk_size: 120
+  
+  # FAISS compression settings for HotpotQA
+  compression_method: faiss_ratio
+  max_schema_size: null
+  compression_ratio: 0.6
+  compress_if_more_than: 25

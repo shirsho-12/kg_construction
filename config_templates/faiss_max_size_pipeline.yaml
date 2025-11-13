@@ -1,0 +1,27 @@
+# FAISS Maximum Size Compression Pipeline Configuration
+# Tests compression to specific maximum number of relations
+
+mode: json
+pipeline:
+  data_path: data/json/test.json
+  output_dir: output/faiss_tests/max_size
+  dataset_type: auto
+  extraction_mode: base
+  
+  # FAISS max size compression settings
+  compression_method: faiss_max_size
+  max_schema_size: 15
+  compression_ratio: null
+  compress_if_more_than: 20
+  
+  # Test multiple max sizes
+  test_configurations:
+    - name: "small_schema"
+      max_schema_size: 8
+      output_suffix: "_small"
+    - name: "medium_schema" 
+      max_schema_size: 15
+      output_suffix: "_medium"
+    - name: "large_schema"
+      max_schema_size: 25
+      output_suffix: "_large"

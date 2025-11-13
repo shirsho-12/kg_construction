@@ -29,9 +29,28 @@ logging:
 # Default pipeline settings
 pipeline_defaults:
   use_synonyms: true
-  compression_method: agglomerative
-  compression_threshold: 0.8
+  compression_method: faiss_max_size
+  max_schema_size: 20
+  compression_ratio: null
   compress_if_more_than: 30
   extraction_mode: base
   chunk_size: 100
   dataset_type: auto
+
+# FAISS compression test configurations
+faiss_compression_tests:
+  max_size_tests:
+    - max_size: 10
+      description: "Small schema (10 relations)"
+    - max_size: 20
+      description: "Medium schema (20 relations)"
+    - max_size: 50
+      description: "Large schema (50 relations)"
+  
+  ratio_tests:
+    - ratio: 0.3
+      description: "Aggressive compression (30% of original)"
+    - ratio: 0.5
+      description: "Moderate compression (50% of original)"
+    - ratio: 0.7
+      description: "Light compression (70% of original)"

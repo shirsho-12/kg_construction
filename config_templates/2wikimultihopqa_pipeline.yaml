@@ -8,3 +8,9 @@ pipeline:
   dataset_type: 2wikimultihopqa
   extraction_mode: chunking
   chunk_size: 150
+  
+  # FAISS compression settings for 2WikiMultiHopQA
+  compression_method: faiss_max_size
+  max_schema_size: 25
+  compression_ratio: null
+  compress_if_more_than: 30

@@ -540,9 +540,9 @@ def main():
     parser.add_argument(
         "--compression-method",
         type=str,
-        default="agglomerative",
-        choices=["agglomerative", "hdbscan"],
-        help="Schema compression method (default: agglomerative)",
+        default="faiss_similarity",
+        choices=["faiss_similarity"],
+        help="Schema compression method (default: faiss_similarity)",
     )
     parser.add_argument(
         "--compression-threshold",

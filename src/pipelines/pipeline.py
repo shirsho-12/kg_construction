@@ -44,7 +44,7 @@ def run_pipeline(
     data_path: Path,
     output_dir: Path,
     use_synonyms: bool = True,
-    compression_method: str = "hdbscan",
+    compression_method: str = "faiss_similarity",
     compression_threshold: float = 0.6,
     compress_if_more_than: int = 3,
 ):
@@ -246,7 +246,7 @@ if __name__ == "__main__":
         / "output"
         / EXAMPLE_DATA_PATH_TEXT.parts[-1].split(".")[0],
         use_synonyms=True,
-        compression_method="agglomerative",
+        compression_method="faiss_similarity",
         compression_threshold=0.8,
         compress_if_more_than=30,
     )

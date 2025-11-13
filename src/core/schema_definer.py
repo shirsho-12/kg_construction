@@ -119,13 +119,13 @@ class SchemaDefiner:
         return text
 
     def compress_schema(
-        self, 
-        schema: dict, 
-        threshold=0.8, 
-        method="agglomerative",
+        self,
+        schema: dict,
+        threshold=0.8,
+        method="faiss_similarity",
         max_size: int = None,
         compression_ratio: float = None,
-        merge_strategy: str = "most_similar"
+        merge_strategy: str = "most_similar",
     ):
         if not schema:
             logger.warning("Empty schema provided; skipping compression.")
@@ -171,24 +171,24 @@ class SchemaDefiner:
 
             if method == "faiss_max_size" and max_size is not None:
                 compressed_schema = self.faiss_compressor.compress_by_max_size(
-                    valid_schema, 
-                    max_size=max_size,
-                    merge_strategy=merge_strategy
+                    valid_schema, max_size=max_size, merge_strategy=merge_strategy
                 )
             elif method == "faiss_ratio" and compression_ratio is not None:
                 compressed_schema = self.faiss_compressor.compress_by_ratio(
-                    valid_schema, 
+                    valid_schema,
                     compression_ratio=compression_ratio,
-                    merge_strategy=merge_strategy
+                    merge_strategy=merge_strategy,
                 )
             elif method == "faiss_similarity":
                 compressed_schema = self.faiss_compressor.compress_by_similarity_groups(
-                    valid_schema, 
+                    valid_schema,
                     similarity_threshold=threshold,
-                    merge_strategy=merge_strategy
+                    merge_strategy=merge_strategy,
                 )
             else:
-                raise ValueError(f"Unknown compression method: {method}. Available methods: 'faiss_max_size', 'faiss_ratio', 'faiss_similarity'")
+                raise ValueError(
+                    f"Unknown compression method: {method}. Available methods: 'faiss_max_size', 'faiss_ratio', 'faiss_similarity'"
+                )
 
             compressed_count = len(compressed_schema)
             compression_ratio = (
@@ -220,7 +220,6 @@ class SchemaDefiner:
             logger.error(f"Compression failed with error: {e}")
             logger.info("Returning original schema due to compression failure")
             return schema
-
 
     def swap_relations_to_compressed(
         self, oie_triplets: list, original_to_compressed_map: dict

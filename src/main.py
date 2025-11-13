@@ -45,7 +45,7 @@ def run_text_pipeline(config: Dict[str, Any], logger):
             "use_synonyms", defaults.get("use_synonyms", True)
         ),
         compression_method=pipeline_config.get(
-            "compression_method", defaults.get("compression_method", "agglomerative")
+            "compression_method", defaults.get("compression_method", "faiss_similarity")
         ),
         compression_threshold=pipeline_config.get(
             "compression_threshold", defaults.get("compression_threshold", 0.8)
@@ -73,7 +73,7 @@ def run_json_pipeline_main(config: Dict[str, Any], logger):
             "use_synonyms", defaults.get("use_synonyms", True)
         ),
         compression_method=pipeline_config.get(
-            "compression_method", defaults.get("compression_method", "agglomerative")
+            "compression_method", defaults.get("compression_method", "faiss_similarity")
         ),
         compression_threshold=pipeline_config.get(
             "compression_threshold", defaults.get("compression_threshold", 0.8)
@@ -100,7 +100,7 @@ def run_schema_refinement(config: Dict[str, Any], logger):
     refiner_config = config.get("schema_refiner", {})
 
     refiner = SchemaRefiner(
-        compression_method=refiner_config.get("compression_method", "agglomerative"),
+        compression_method=refiner_config.get("compression_method", "faiss_similarity"),
         compression_threshold=refiner_config.get("compression_threshold", 0.8),
         compress_if_more_than=refiner_config.get("compress_if_more_than", 30),
     )
@@ -182,7 +182,7 @@ def create_example_configs():
             "data_path": "data/text/" + file_name + ".txt",
             "output_dir": "output/text/" + file_name,
             "use_synonyms": True,
-            "compression_method": "agglomerative",
+            "compression_method": "faiss_similarity",
             "compression_threshold": 0.8,
             "compress_if_more_than": 30,
         },
@@ -199,7 +199,7 @@ def create_example_configs():
             "data_path": "data/json/" + file_name + ".json",
             "output_dir": "output/json/" + file_name,
             "use_synonyms": True,
-            "compression_method": "agglomerative",
+            "compression_method": "faiss_similarity",
             "compression_threshold": 0.8,
             "compress_if_more_than": 30,
             "extraction_mode": "base",
@@ -220,7 +220,7 @@ def create_example_configs():
             "triplets_file": "triplets.json",
             "synonyms_file": "synonyms.json",
             "input_file": "results.json",
-            "compression_method": "agglomerative",
+            "compression_method": "faiss_similarity",
             "compression_threshold": 0.8,
             "compress_if_more_than": 30,
         },

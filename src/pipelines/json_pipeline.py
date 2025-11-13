@@ -89,7 +89,7 @@ def run_json_pipeline(
     data_path: Path,
     output_dir: Path,
     use_synonyms: bool = True,
-    compression_method: str = "agglomerative",
+    compression_method: str = "faiss_similarity",
     compression_threshold: float = 0.8,
     compress_if_more_than: int = 30,
     extraction_mode: str = "base",
@@ -628,7 +628,7 @@ if __name__ == "__main__":
         / "json"
         / EXAMPLE_DATA_PATH_JSON.parts[-1].split(".")[0],
         use_synonyms=True,
-        compression_method="agglomerative",
+        compression_method="faiss_similarity",
         compression_threshold=0.8,
         compress_if_more_than=30,
         extraction_mode="chunking",  # Options: "base", "chunking", "sentence"

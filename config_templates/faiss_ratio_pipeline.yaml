@@ -1,0 +1,27 @@
+# FAISS Compression Ratio Pipeline Configuration
+# Tests compression by percentage of original schema size
+
+mode: json
+pipeline:
+  data_path: data/json/test.json
+  output_dir: output/faiss_tests/ratio
+  dataset_type: auto
+  extraction_mode: base
+  
+  # FAISS ratio compression settings
+  compression_method: faiss_ratio
+  max_schema_size: null
+  compression_ratio: 0.5
+  compress_if_more_than: 10
+  
+  # Test multiple compression ratios
+  test_configurations:
+    - name: "aggressive_compression"
+      compression_ratio: 0.3
+      output_suffix: "_30pct"
+    - name: "moderate_compression"
+      compression_ratio: 0.5
+      output_suffix: "_50pct"
+    - name: "light_compression"
+      compression_ratio: 0.7
+      output_suffix: "_70pct"
