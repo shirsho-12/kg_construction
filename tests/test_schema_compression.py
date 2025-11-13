@@ -4,12 +4,17 @@ Test script to verify schema compression is working correctly.
 """
 
 import sys
-import tempfile
 from pathlib import Path
 
 # Add src to path for imports
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
+
+from config import (
+    BASE_ENCODER_MODEL,
+    SD_FEW_SHOT_EXAMPLES_PATH,
+    SD_PROMPT_PATH,
+)
 
 from core.schema_definer import SchemaDefiner
 from core.encoder import Encoder
@@ -37,11 +42,11 @@ def test_schema_compression():
 
     try:
         # Initialize encoder and schema definer
-        encoder = Encoder(model_name_or_path="ministral/Ministral-3b-instruct")
+        encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
         schema_definer = SchemaDefiner(
             model=encoder,
-            schema_prompt_path="prompts/sd_prompt.txt",
-            schema_few_shot_examples_path="prompts/sd_example.txt",
+            schema_prompt_path=SD_PROMPT_PATH,
+            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
         )
 
         # Test compression with different thresholds
@@ -96,11 +101,11 @@ def test_schema_parsing():
 """
 
     try:
-        encoder = Encoder(model_name_or_path="ministral/Ministral-3b-instruct")
+        encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
         schema_definer = SchemaDefiner(
             model=encoder,
-            schema_prompt_path="prompts/sd_prompt.txt",
-            schema_few_shot_examples_path="prompts/sd_example.txt",
+            schema_prompt_path=SD_PROMPT_PATH,
+            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
         )
 
         parsed_schema = schema_definer._parse_schema(test_schema_text)
