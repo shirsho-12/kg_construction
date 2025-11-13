@@ -1,21 +1,10 @@
 from typing import Optional, Union
-from config import (
-    BASE_ENCODER_MODEL,
-    LOGGING_LEVEL,
-    OIE_FEW_SHOT_EXAMPLES_PATH,
-    OIE_PROMPT_PATH,
-    OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
-    OIE_SYNONYMY_PROMPT_PATH,
-)
+from utils import logger
 from .encoder import Encoder
 from .extractor import Extractor
 from torch.utils.data import DataLoader
 from pathlib import Path
-import logging
 from tqdm import tqdm
-
-logging.basicConfig(level=LOGGING_LEVEL)
-logger = logging.getLogger(__name__)
 
 
 class OIE:
@@ -92,38 +81,3 @@ class OIE:
                     oie_synonyms.append({})
 
         return oie_triplets, oie_synonyms
-
-
-if __name__ == "__main__":
-    from datasets import TextDataset
-    from torch.utils.data import DataLoader
-    from config import EXAMPLE_DATA_PATH_TEXT
-
-    synonymy = True
-    if synonymy:
-        oie = OIE(
-            encoder=Encoder(model_name_or_path=BASE_ENCODER_MODEL),
-            prompt_template_file=OIE_SYNONYMY_PROMPT_PATH,
-            few_shot_examples_file=OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
-            synonymy=True,
-        )
-    else:
-        oie = OIE(
-            encoder=Encoder(model_name_or_path=BASE_ENCODER_MODEL),
-            prompt_template_file=OIE_PROMPT_PATH,
-            few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
-            synonymy=False,
-        )
-    dataset = TextDataset(
-        data_path=EXAMPLE_DATA_PATH_TEXT,
-        encoder=oie.encoder,
-    )
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
-    triplets, synonyms = oie.run(dataloader=dataloader)
-    print(triplets)
-    for t in triplets:
-        print(t)
-    if synonyms:
-        print(synonyms)
-        for s in synonyms:
-            print(s)

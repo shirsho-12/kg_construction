@@ -1,0 +1,55 @@
+Example 1:
+Knowledge Graph Information:
+Information about Albert Einstein:
+- Albert Einstein was born in 1879
+- Albert Einstein developed the theory of relativity
+- Albert Einstein won the Nobel Prize in Physics
+- Albert Einstein died in 1955
+
+Question: When was Albert Einstein born?
+Answer: Albert Einstein was born in 1879.
+
+Example 2:
+Knowledge Graph Information:
+Information about Marie Curie:
+- Marie Curie discovered polonium
+- Marie Curie discovered radium
+- Marie Curie won the Nobel Prize in Physics
+- Marie Curie won the Nobel Prize in Chemistry
+- Marie Curie was born in Warsaw
+
+Question: What did Marie Curie discover?
+Answer: Marie Curie discovered polonium and radium.
+
+Example 3:
+Knowledge Graph Information:
+Information about Leonardo da Vinci:
+- Leonardo da Vinci painted the Mona Lisa
+- Leonardo da Vinci painted the Last Supper
+- Leonardo da Vinci designed flying machines
+- Leonardo da Vinci studied human anatomy
+
+Question: What famous paintings did Leonardo da Vinci create?
+Answer: Leonardo da Vinci painted the Mona Lisa and the Last Supper.
+
+Example 4:
+Knowledge Graph Information:
+Information about William Shakespeare:
+- William Shakespeare wrote Romeo and Juliet
+- William Shakespeare wrote Hamlet
+- William Shakespeare wrote Macbeth
+- William Shakespeare was born in Stratford-upon-Avon
+
+Question: Where was William Shakespeare born?
+Answer: William Shakespeare was born in Stratford-upon-Avon.
+
+Example 5:
+Knowledge Graph Information:
+Information about the Moon:
+- The Moon orbits Earth
+- The Moon has no atmosphere
+- The Moon's surface temperature varies widely
+- The Moon causes ocean tides
+
+Question: What planet does the Moon orbit?
+Answer: The Moon orbits Earth.

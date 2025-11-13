@@ -1,26 +1,71 @@
 from typing import Dict, List, Union
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
-import logging
+from utils import logger
+import os
 from config import MISTRAL_MAX_LENGTH, MODEL_CACHE_DIR
 
-logger = logging.getLogger(__name__)
+try:
+    import openai
+
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai = None
 
 
 class Encoder:
-    def __init__(self, model_name_or_path: str, device: str = ""):
-        self.device = (
-            device
-            if device
-            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
-        )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+    def __init__(
+        self,
+        model_name_or_path: str,
+        device: str = "",
+        framework: str = "transformers",
+        api_key: str = "",
+    ):
+        self.framework = framework
+        self.model_name_or_path = model_name_or_path
+        self.embedding_dim = None
+
+        if framework == "transformers":
+            self.device = (
+                device
+                if device
+                else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
+            )
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name_or_path, device_map=self.device, cache_dir=MODEL_CACHE_DIR
+            )
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.embedding_dim = self.model.config.hidden_size
+        elif framework in ["openai", "openrouter"]:
+            if not OPENAI_AVAILABLE:
+                raise ImportError(
+                    "OpenAI library is required for OpenAI/OpenRouter support"
+                )
+
+            self.api_key = api_key or os.getenv(
+                "OPENAI_API_KEY" if framework == "openai" else "OPENROUTER_API_KEY"
+            )
+            if not self.api_key:
+                raise ValueError(
+                    f"API key is required for {framework}. Set {framework.upper()}_API_KEY environment variable or pass api_key parameter."
+                )
+
+            self.client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url=(
+                    "https://openrouter.ai/api/v1"
+                    if framework == "openrouter"
+                    else None
+                ),
+            )
+            self.device = device
+            self.embedding_dim = 1024
+        else:
+            raise ValueError(f"Unsupported framework: {framework}")
 
     def _mistral_encode(self, text: Union[List[str], str]) -> torch.Tensor:
         self.model.eval()
@@ -85,27 +130,60 @@ class Encoder:
     def _generate_completion_openai(
         self, text: List[Dict[str, str]], max_length: int = 512, answer_prefix: str = ""
     ) -> List[str]:
-        raise NotImplementedError(
-            "OpenAI generation is not implemented in this encoder."
-        )
+        """Generate completion using OpenAI or OpenRouter API."""
+        try:
+            # Convert messages to OpenAI format
+            messages = []
+            for msg in text:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    messages.append(msg)
+                else:
+                    # Handle legacy format
+                    messages.append({"role": "user", "content": str(msg)})
+
+            # Add answer prefix if provided
+            if answer_prefix:
+                messages[-1]["content"] += answer_prefix
+
+            response = self.client.chat.completions.create(
+                model=self.model_name_or_path,
+                messages=messages,
+                max_tokens=max_length,
+                temperature=0.1,
+                top_p=0.9,
+            )
+
+            return [response.choices[0].message.content.strip()]
+
+        except Exception as e:
+            logger.error(f"Error in OpenAI/OpenRouter generation: {e}")
+            return [f"Error generating response: {str(e)}"]
 
     def generate_completion(
         self,
         text: List[Dict[str, str]],
         max_length: int = 512,
         answer_prefix: str = "",
-        framework: str = "transformers",
     ) -> List[str]:
+        """Generate completion using the specified or default framework."""
+        framework = self.framework
+
         if framework == "transformers":
             return self._generate_completion_transformers(
                 text, max_length, answer_prefix
             )
-        elif framework == "openai":
+        elif framework in ["openai", "openrouter"]:
             return self._generate_completion_openai(text, max_length, answer_prefix)
         else:
             raise ValueError(f"Unsupported framework: {framework}")
 
     def encode(self, text, model_type: str = "mistral") -> torch.Tensor:
+        """Encode text to embeddings. Only available for transformers framework."""
+        if self.framework != "transformers":
+            raise ValueError(
+                f"Encoding is only supported for transformers framework, not {self.framework}"
+            )
+
         if model_type == "mistral":
             return self._mistral_encode(text)
         else:
@@ -113,16 +191,3 @@ class Encoder:
 
     def __call__(self, *args, **kwds) -> torch.Tensor:
         return self.encode(*args, **kwds)
-
-
-if __name__ == "__main__":
-    from config import BASE_ENCODER_MODEL
-
-    encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
-    text = [{"role": "user", "content": "How are you doing?"}]
-    embeddings = encoder.encode(text[0]["content"])
-    print(embeddings)
-    completion = encoder.generate_completion(
-        text, max_length=50, answer_prefix="Answer: "
-    )
-    print(completion)

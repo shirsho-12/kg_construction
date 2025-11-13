@@ -14,21 +14,20 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from config_manager import load_config, setup_logging_from_config
 from pipelines.pipeline import run_pipeline
 from pipelines.json_pipeline import run_json_pipeline
 from pipelines.schema_refiner import SchemaRefiner
+from core.encoder import Encoder
 from evaluation.qa_system import QASystem
+from config import (
+    LOGGING_LEVEL,
+    BASE_ENCODER_MODEL,
+    EXAMPLE_DATA_PATH_JSON,
+)
+from logging import getLogger
 
-
-def setup_logging(config: Dict[str, Any]):
-    """Setup logging based on config - kept for backward compatibility."""
-    return setup_logging_from_config(config)
-
-
-def load_config_legacy(config_path: Path) -> Dict[str, Any]:
-    """Load configuration using the new config manager."""
-    return load_config(config_path)
+logger = getLogger(__name__)
+logger.setLevel(LOGGING_LEVEL)
 
 
 def run_text_pipeline(config: Dict[str, Any], logger):
@@ -146,32 +145,26 @@ def run_qa_evaluation(config: Dict[str, Any], logger):
 
     dataset = JSONDataset(Path(qa_config.get("data_path")), task_type="qa")
 
-    dataset = JSONDataset(Path(qa_config.get("data_path")), task_type="qa")
-
     # Initialize QA system
-    qa_system = QASystem()
+    qa_system = QASystem(encoder=Encoder(model_name_or_path=BASE_ENCODER_MODEL))
 
     # Load knowledge graph
     qa_system.load_knowledge_graph_from_file(Path(qa_config.get("triplets_file")))
 
     qa_system.load_knowledge_graph_from_file(Path(qa_config.get("triplets_file")))
 
-    # Evaluate both methods
-    for method in ["word_match", "graph_rag"]:
-        logger.info(f"Evaluating QA with method: {method}")
-        metrics = qa_system.evaluate_qa(dataset, method=method)
+    metrics = qa_system.evaluate_qa(dataset)
 
         # Save results
-        output_file = Path(qa_config.get("output_dir")) / f"qa_results_{method}.json"
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file = Path(qa_config.get("output_dir")) / f"qa_results.json"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            import json
+    with open(output_file, "w", encoding="utf-8") as f:
+        import json
 
-            json.dump(metrics, f, indent=2, ensure_ascii=False)
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"QA evaluation results saved to: {output_file}")
-        logger.info(f"Accuracy ({method}): {metrics['accuracy']:.4f}")
+    logger.info(f"QA evaluation results saved to: {output_file}")
 
     logger.info("QA evaluation completed successfully!")
 
@@ -316,11 +309,9 @@ Examples:
         sys.exit(1)
 
     try:
-        config = load_config(args.config)
-        logger = setup_logging(config)
 
         # Get mode from config
-        mode = config.get("mode")
+        mode = 
         if not mode:
             parser.error(
                 "Config must specify 'mode' field with one of: text, json, "

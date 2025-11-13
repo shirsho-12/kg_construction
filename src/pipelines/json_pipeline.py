@@ -13,7 +13,10 @@ import logging
 from tqdm import tqdm
 import json
 
-from config_manager import get_config_manager
+from config import (
+    BASE_ENCODER_MODEL,
+    EXAMPLE_DATA_PATH_JSON,
+)
 from datasets import (
     JSONDataset,
     GraphConstructionEvaluator,
@@ -43,17 +46,9 @@ from config import (
     LOGGING_LEVEL,
 )
 
-# Initialize config manager and get configuration
-config_manager = get_config_manager()
-base_config = config_manager.base_config
 
-# Setup logging
-logging.basicConfig(
-    level=getattr(logging, base_config.get("logging", {}).get("level", "INFO").upper()),
-    format=base_config.get("logging", {}).get(
-        "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    ),
-)
+logging.basicConfig(level=LOGGING_LEVEL)
+
 logger = logging.getLogger(__name__)
 
 

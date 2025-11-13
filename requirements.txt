@@ -3,3 +3,4 @@ huggingface-sb3==3.0
 transformers
 sentencepiece
 torch
+openai

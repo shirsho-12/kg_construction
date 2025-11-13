@@ -1,15 +1,10 @@
-from typing import Union, List, Optional
+from typing import Union, List
 from pathlib import Path
-import logging
 from .encoder import Encoder
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.cluster._hdbscan.hdbscan import HDBSCAN
 import numpy as np
-from config import LOGGING_LEVEL
-from tqdm import tqdm
-
-logging.basicConfig(level=LOGGING_LEVEL)
-logger = logging.getLogger(__name__)
+from utils import logger
 
 
 class SchemaDefiner:
@@ -312,14 +307,14 @@ class SchemaDefiner:
 
         results = []
         triplets_text = []  # Also save as text format
-        
+
         for idx, triplet in enumerate(oie_triplets):
             # Handle different triplet formats
             subj, rel, obj = None, None, None
-            
+
             if isinstance(triplet, (list, tuple)) and len(triplet) == 1:
                 triplet = triplet[0]
-            
+
             if isinstance(triplet, str):
                 new_triplet = triplet.split("#SEP")
                 if len(new_triplet) == 3:
@@ -338,11 +333,13 @@ class SchemaDefiner:
                 triplets_text.append(triplet[-1][0])  # Save original string format
             elif len(triplet) == 3 and isinstance(triplet, (list, tuple)):
                 subj, rel, obj = triplet
-                triplets_text.append(f"{subj}#SEP{rel}#SEP{obj}")  # Create string format
+                triplets_text.append(
+                    f"{subj}#SEP{rel}#SEP{obj}"
+                )  # Create string format
             else:
                 logger.warning("Skipping malformed triplet: %s", triplet)
                 continue
-            
+
             # Add to results as dictionary format
             if subj and rel and obj:
                 results.append({"subject": subj, "relation": rel, "object": obj})
@@ -351,13 +348,15 @@ class SchemaDefiner:
         output_data = {
             "triplets": results,
             "triplets_text": triplets_text,
-            "count": len(results)
+            "count": len(results),
         }
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
-        
-        logger.info("Saved %d triples to %s (including text format)", len(results), output_path)
+
+        logger.info(
+            "Saved %d triples to %s (including text format)", len(results), output_path
+        )
 
     def save_schema_definitions(self, schemas, output_path: Union[str, Path]):
         """Save schema definitions for each input text."""
@@ -381,19 +380,23 @@ class SchemaDefiner:
         total_original = 0
         total_compressed = 0
         successful_compressions = 0
-        
+
         for i, (orig, comp) in enumerate(zip(original_schemas, compressed_schemas)):
             original_count = len(orig) if orig else 0
             compressed_count = len(comp) if comp else 0
-            compression_ratio = compressed_count / original_count if original_count > 0 else 1.0
+            compression_ratio = (
+                compressed_count / original_count if original_count > 0 else 1.0
+            )
             reduction_count = original_count - compressed_count
-            reduction_percentage = (reduction_count / original_count * 100) if original_count > 0 else 0
-            
+            reduction_percentage = (
+                (reduction_count / original_count * 100) if original_count > 0 else 0
+            )
+
             # Check if compression actually occurred
             is_compressed = compressed_count < original_count and original_count > 1
             if is_compressed:
                 successful_compressions += 1
-            
+
             outcome = {
                 "input_index": i,
                 "original_relations": list(orig.keys()) if orig else [],
@@ -405,19 +408,29 @@ class SchemaDefiner:
                 "reduction_percentage": round(reduction_percentage, 2),
                 "compression_method": compression_method,
                 "compression_successful": is_compressed,
-                "removed_relations": list(set(orig.keys()) - set(comp.keys())) if orig and comp else [],
+                "removed_relations": (
+                    list(set(orig.keys()) - set(comp.keys())) if orig and comp else []
+                ),
             }
             outcomes.append(outcome)
-            
+
             total_original += original_count
             total_compressed += compressed_count
 
         # Calculate overall metrics
-        overall_compression_ratio = total_compressed / total_original if total_original > 0 else 1.0
+        overall_compression_ratio = (
+            total_compressed / total_original if total_original > 0 else 1.0
+        )
         overall_reduction = total_original - total_compressed
-        overall_reduction_percentage = (overall_reduction / total_original * 100) if total_original > 0 else 0
-        success_rate = (successful_compressions / len(original_schemas) * 100) if original_schemas else 0
-        
+        overall_reduction_percentage = (
+            (overall_reduction / total_original * 100) if total_original > 0 else 0
+        )
+        success_rate = (
+            (successful_compressions / len(original_schemas) * 100)
+            if original_schemas
+            else 0
+        )
+
         summary_metrics = {
             "total_inputs": len(original_schemas),
             "total_original_relations": total_original,
@@ -433,79 +446,18 @@ class SchemaDefiner:
         # Save both detailed outcomes and summary metrics
         output_data = {
             "summary_metrics": summary_metrics,
-            "detailed_outcomes": outcomes
+            "detailed_outcomes": outcomes,
         }
 
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
-        
+
         logger.info(f"Compression metrics saved to {output_path}")
-        logger.info(f"Overall: {total_original} -> {total_compressed} relations "
-                   f"({overall_reduction} reduced, {overall_reduction_percentage:.1f}% reduction)")
-        logger.info(f"Success rate: {successful_compressions}/{len(original_schemas)} "
-                   f"({success_rate:.1f}%)")
-
-
-if __name__ == "__main__":
-    from config import (
-        SD_PROMPT_PATH,
-        SD_FEW_SHOT_EXAMPLES_PATH,
-        BASE_ENCODER_MODEL,
-    )
-    from datasets import TextDataset
-    from torch.utils.data import DataLoader
-    from config import EXAMPLE_DATA_PATH_JSON
-
-    model = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
-    schema_definer = SchemaDefiner(
-        model=model,
-        schema_prompt_path=SD_PROMPT_PATH,
-        schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
-    )
-    dataset = TextDataset(
-        data_path=EXAMPLE_DATA_PATH_JSON,
-        encoder=model,
-    )
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
-
-    for i, batch in enumerate(dataloader):
-        logger.debug(f"Processing batch {i}: {batch}")
-        for b in batch:
-            oie_triplets = [
-                ("Alice", "visited", "Paris"),
-                ("Bob", "works_at", "CompanyX"),
-            ]
-            schema = schema_definer.run(b, [oie_triplets])
-
-            for s in schema:
-                for relation, definition in s.items():
-                    print(f"Relation: {relation}\nDefinition: {definition}\n")
-
-            compressed_schema = schema_definer.compress_schema(schema[0])
-            print(f"Compressed Schema - Agglomerative: {compressed_schema}\n")
-            compressed_schema_hdbscan = schema_definer.compress_schema(
-                schema[0], method="hdbscan"
-            )
-            print(f"Compressed Schema - HDBSCAN: {compressed_schema_hdbscan}\n")
-
-            # Build map from original to compressed relations
-            original_to_compressed = {}
-            if schema[0]:
-                if compressed_schema:
-                    # Simple heuristic: map in order; replace with proper clustering
-                    for orig, comp in zip(schema[0].keys(), compressed_schema.keys()):
-                        original_to_compressed[orig] = comp
-                else:
-                    original_to_compressed = {rel: rel for rel in schema[0].keys()}
-
-            swapped_triplets = schema_definer.swap_relations_to_compressed(
-                oie_triplets, original_to_compressed
-            )
-            print("Swapped triplets:", swapped_triplets)
-
-            # Save to JSON
-            output_path = Path.cwd() / "output" / f"batch_{i}_triplets.json"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            schema_definer.save_entities_relations_to_json(
-                swapped_triplets, output_path
-            )
+        logger.info(
+            f"Overall: {total_original} -> {total_compressed} relations "
+            f"({overall_reduction} reduced, {overall_reduction_percentage:.1f}% reduction)"
+        )
+        logger.info(
+            f"Success rate: {successful_compressions}/{len(original_schemas)} "
+            f"({success_rate:.1f}%)"
+        )

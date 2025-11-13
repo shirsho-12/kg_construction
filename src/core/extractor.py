@@ -1,12 +1,8 @@
 import nltk
 from collections import defaultdict
 from typing import List, Optional, Tuple, Union
-from config import LOGGING_LEVEL
 from .encoder import Encoder
-import logging
-
-logging.basicConfig(level=LOGGING_LEVEL)
-logger = logging.getLogger(__name__)
+from utils import logger
 
 
 class Extractor:
@@ -88,16 +84,6 @@ class Extractor:
         score = length_penalty + verb_score
         return score
 
-    def batch_extract(
-        self,
-        input_texts: List[str],
-        prompt_template: str,
-        few_shot_examples: Optional[str] = None,
-        entities_hint: Optional[str] = None,
-        relations_hint: Optional[str] = None,
-    ) -> List[List[Tuple[str]]]:
-        raise NotImplementedError("Batch extraction is not implemented yet.")
-
     def parse_triplets(self, raw_triplets: str, synonyms=False) -> List[Tuple[str]]:
         # Look for enclosing brackets
         u_stack = []
@@ -171,34 +157,11 @@ class Extractor:
 
     def __call__(
         self,
-        input_text: Union[str, List[str]],
+        input_text: str,
         prompt_template: str,
         few_shot_examples: Optional[str] = None,
     ) -> Union[List[Tuple[str]], List[List[Tuple[str]]]]:
-        if isinstance(input_text, list):
-            logger.debug("Running batch extraction for input texts.")
-            return self.batch_extract(
-                input_text, prompt_template, few_shot_examples=few_shot_examples
-            )
         logger.debug("Running single extraction for input text.")
         return self.extract(
             input_text, prompt_template, few_shot_examples=few_shot_examples
         )
-
-
-if __name__ == "__main__":
-    from config import BASE_ENCODER_MODEL
-
-    encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
-    extractor = Extractor(encoder=encoder)
-    extraction_prompt = (
-        "Extract all triplets from the following text. Only output the triples. Do not produce any additional text.\n"
-        "Output should be of the form [[entity1, relation, entity2], ...]\n"
-        "Text: {input_text}\n"
-        "Triplets:"
-    )
-    extraction = extractor.extract(
-        input_text="Paris is the capital of France.",
-        prompt_template=extraction_prompt,
-    )
-    print(extraction)
