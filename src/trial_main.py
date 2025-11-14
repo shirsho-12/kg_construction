@@ -15,4 +15,4 @@ run_json_pipeline(data_path=EXAMPLE_DATA_PATH_JSON, output_dir = Path.cwd() / "o
         run_oie_flag = True,
         run_schema_definition_flag = True,
         run_compression_flag = True,
-        run_qa_flag = True)
+        run_qa_flag = False)

@@ -155,7 +155,7 @@ def run_json_pipeline(
         entity_context = sample["context"]
 
         # Get sample _id for isolation
-        sample_id = sample.get("_id", f"sample_{i}")
+        sample_id = sample.get("id", f"sample_{i}")
 
         # Initialize isolated storage for this _id
         results_by_id[sample_id] = {
@@ -192,7 +192,7 @@ def run_json_pipeline(
             entity_context = sample["context"]
 
             # Get sample _id for isolation
-            sample_id = sample.get("_id", f"sample_{i}")
+            sample_id = sample.get("id", f"sample_{i}")
             results_by_id[sample_id]["extracted_triplets"] = oie_triplets[i]
             if oie_triplets[i]:
                 results_by_id[sample_id]["entities"] = list(
@@ -271,12 +271,13 @@ def run_json_pipeline(
             compression_ratio=compression_threshold,
             compress_if_more_than=compress_if_more_than,
         )
+        compressed_schema = None
         for i in range(len(graph_dataset)):
             sample = graph_dataset[i]
             entity_context = sample["context"]
 
             # Get sample _id for isolation
-            sample_id = sample.get("_id", f"sample_{i}")
+            sample_id = sample.get("id", f"sample_{i}")
             extracted_triplets = results_by_id[sample_id]["extracted_triplets"]
             schema = results_by_id[sample_id]["schema_definition"]
             compressed_schema = {}
@@ -284,14 +285,14 @@ def run_json_pipeline(
                 compressed_schema, compression_map = schema_refiner.refine_schema(
                     schema
                 )
+                results_by_id[sample_id]["compressed_schema"] = compressed_schema
+                results_by_id[sample_id]["compression_mapping"] = compression_map
             except Exception as e:
                 logger.error(f"Error in schema compression for sample {sample_id}: {e}")
 
             if compressed_schema:
                 logger.info(f"Compressed to {len(compressed_schema)} relations")
 
-            results_by_id[sample_id]["compressed_schema"] = compressed_schema
-            results_by_id[sample_id]["compression_mapping"] = compression_map
 
             # Apply compression to triplets for this sample only
             if compressed_schema and compressed_schema != schema:
@@ -410,7 +411,7 @@ def run_json_pipeline(
     all_triplets_per_sample = []
     for i in range(len(graph_dataset)):
         sample = graph_dataset[i]
-        sample_id = sample.get("_id", f"sample_{i}")
+        sample_id = sample.get("id", f"sample_{i}")
         all_triplets_per_sample.append(results_by_id[sample_id]["compressed_triplets"])
 
     graph_metrics = evaluator.evaluate_dataset(graph_dataset, all_triplets_per_sample)
@@ -437,7 +438,7 @@ def run_json_pipeline(
     # For each sample, use its extracted triplets as knowledge graph (isolated by _id)
     qa_results = []
     for i, sample in enumerate(tqdm(qa_dataset, desc="QA Evaluation")):
-        sample_id = sample.get("_id", f"sample_{i}")
+        sample_id = sample.get("id", f"sample_{i}")
         # Use this sample's isolated triplets
         qa_system.load_knowledge_graph(results_by_id[sample_id]["compressed_triplets"])
 
