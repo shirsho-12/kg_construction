@@ -1,7 +1,7 @@
 from pathlib import Path
 import json
 from typing import Any, List, Tuple, Dict, Union
-from log import logger
+from .log import logger
 from datasets.json_dataset import JSONDataset
 
 

@@ -5,7 +5,6 @@ from .file_handlers import (
     load_synonyms_from_file,
     save_schema_definitions,
 )
-import pipeline_utils
 
 __all__ = [
     "logger",
@@ -13,5 +12,4 @@ __all__ = [
     "load_triplets_from_file",
     "load_synonyms_from_file",
     "save_schema_definitions",
-    "pipeline_utils",
 ]

@@ -245,9 +245,12 @@ def run_json_pipeline(
     if run_schema_definition_flag:
         logger.info("Running schema definition over extracted triplets...")
         for idx, dct in enumerate(tqdm(qa_dataset, desc="Schema Definition")):
-            input_text = " ".join(
-                dct["context"].values()
-            )  # Combine all entity contexts
+            if isinstance(dct["context"], dict):
+                input_text = " ".join(
+                    dct["context"].values()
+                )  # Combine all entity contexts
+            else:
+                input_text = dct['context']
             if sample_triplets_map:
                 oie_triplets_for_sample = sample_triplets_map.get(dct["id"], [])
             else:
