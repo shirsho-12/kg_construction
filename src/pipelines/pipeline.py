@@ -25,11 +25,11 @@ from config import (
     SD_PROMPT_PATH,
 )
 from datasets import TextDataset
-from core.encoder import Encoder
-from core.oie import OIE
-from core.schema_definer import SchemaDefiner
+from triplet_extraction.encoder import Encoder
+from triplet_extraction.oie import OIE
+from schema_definition.schema_definer import SchemaDefiner
 from torch.utils.data import DataLoader
-from .pipeline_utils import (
+from utils.pipeline_utils import (
     setup_file_logging,
     save_problematic_report,
     save_synonyms,

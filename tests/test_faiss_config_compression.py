@@ -17,8 +17,8 @@ from config import (
     SD_PROMPT_PATH,
 )
 
-from core.schema_definer import SchemaDefiner
-from core.encoder import Encoder
+from schema_definition.schema_definer import SchemaDefiner
+from triplet_extraction.encoder import Encoder
 
 
 encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)

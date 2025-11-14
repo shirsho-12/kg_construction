@@ -26,12 +26,14 @@ class FaissIndex:
         self.index.add(vectors.astype("float32"))
         self.id_map.extend(ids)
 
-    def search(self, query_vec: Union[np.ndarray, torch.Tensor], top_k: int = 5) -> List[Tuple[int, float]]:
+    def search(
+        self, query_vec: Union[np.ndarray, torch.Tensor], top_k: int = 5
+    ) -> List[Tuple[int, float]]:
         # returns list of (passage_id, score)
         # Convert torch tensor to numpy if needed
         if isinstance(query_vec, torch.Tensor):
             query_vec = query_vec.detach().cpu().numpy()
-            
+
         v = query_vec.reshape(1, -1)
         if self.normalize:
             v = v / (np.linalg.norm(v) + 1e-12)

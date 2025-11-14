@@ -6,18 +6,16 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from config import BASE_ENCODER_MODEL
-from core.encoder import Encoder
-from core.extractor import Extractor
+from triplet_extraction.encoder import Encoder
+from triplet_extraction.extractor import Extractor
 from datasets import TextDataset
 from torch.utils.data import DataLoader
 from config import (
-    OIE_FEW_SHOT_EXAMPLES_PATH,
-    OIE_PROMPT_PATH,
     OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
     OIE_SYNONYMY_PROMPT_PATH,
     EXAMPLE_DATA_PATH_TEXT,
 )
-from core.oie import OIE
+from triplet_extraction.oie import OIE
 
 # Example usage with transformers
 print("Testing transformers encoder...")

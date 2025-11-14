@@ -7,10 +7,8 @@ from typing import Dict, List, Tuple, Any, Optional
 from collections import defaultdict
 from pathlib import Path
 import json
-from evaluation.faiss_index import FaissIndex
-from utils import logger
+from utils import logger, FaissIndex
 import networkx as nx
-from utils import logger
 
 
 class QASystem:
@@ -100,10 +98,12 @@ class QASystem:
             self.triplets.update(triplets)
         return self.load_knowledge_graph(triplets)
 
-    def load_graph_for_passage(self, q_id: str, triplets_data: List[Tuple[str, str, str]]) -> None:
+    def load_graph_for_passage(
+        self, q_id: str, triplets_data: List[Tuple[str, str, str]]
+    ) -> None:
         """
         Load knowledge graph for a specific question/passage ID.
-        
+
         Args:
             q_id: Question/passage ID
             triplets_data: List of (subject, relation, object) triplets for this question
@@ -111,16 +111,16 @@ class QASystem:
         # Clear existing data for this ID
         self.knowledge_graph[q_id] = nx.MultiDiGraph()
         self.triplets[q_id] = []
-        
+
         # Load triplets into graph and cache
         for i, (subject, relation, obj) in enumerate(triplets_data):
-            self.knowledge_graph[q_id].add_edge(subject, obj, relation=relation, triplet_id=i)
-            self.triplets[q_id].append({
-                "head": subject,
-                "relation": relation, 
-                "tail": obj
-            })
-        
+            self.knowledge_graph[q_id].add_edge(
+                subject, obj, relation=relation, triplet_id=i
+            )
+            self.triplets[q_id].append(
+                {"head": subject, "relation": relation, "tail": obj}
+            )
+
         logger.info(f"Loaded {len(triplets_data)} triplets for q_id={q_id}")
 
     def triplet_to_sentence(self, triplet: Dict[str, str]) -> str:
@@ -203,24 +203,24 @@ class QASystem:
         logger.info(
             f"[build] embedding {len(texts)} passages for q_id={q_id} with model (dim={self.encoder.embedding_dim}) ..."
         )
-        
+
         if not texts:
             logger.warning(f"No passages found for q_id={q_id}")
             self.faiss_indices[q_id] = None
             self.passages_cache[q_id] = []
             return passages
-            
+
         vectors = self.encoder.encode(texts)
         faiss_index = FaissIndex(
             embedding_dim=self.encoder.embedding_dim, normalize=normalize
         )
         ids = [p["id"] for p in passages]
         faiss_index.add(vectors, ids)
-        
+
         # Store per question ID
         self.faiss_indices[q_id] = faiss_index
         self.passages_cache[q_id] = passages
-        
+
         logger.info(f"[build] index built for q_id={q_id}.")
         return passages
 
@@ -229,12 +229,12 @@ class QASystem:
         if q_id not in self.faiss_indices or self.faiss_indices[q_id] is None:
             logger.warning(f"No FAISS index found for q_id={q_id}")
             return []
-            
+
         passages = self.passages_cache.get(q_id, [])
         if not passages:
             logger.warning(f"No passages cached for q_id={q_id}")
             return []
-            
+
         qvec = self.encoder.encode([query])
         results = self.faiss_indices[q_id].search(qvec, top_k=top_k)
         out = []
@@ -265,7 +265,9 @@ class QASystem:
         out = self.encoder.generate_completion([{"role": "user", "content": prompt}])
         return out[0].strip()
 
-    def answer_question(self, question: str, q_id: str = "0", top_k: int = 5) -> Dict[str, Any]:
+    def answer_question(
+        self, question: str, q_id: str = "0", top_k: int = 5
+    ) -> Dict[str, Any]:
         """
         Answer a question using the knowledge graph with LLM-based Graph RAG.
 
@@ -282,10 +284,10 @@ class QASystem:
             if q_id not in self.faiss_indices:
                 logger.info(f"Building index for q_id={q_id}")
                 self.build(q_id)
-            
+
             # Retrieve relevant passages using FAISS
             retrieved_passages = self.retrieve(question, q_id, top_k=top_k)
-            
+
             if not retrieved_passages:
                 return {
                     "question": question,
@@ -296,7 +298,9 @@ class QASystem:
                 }
 
             # Generate answer using LLM with retrieved passages
-            answer = self.answer_with_transformers(question, retrieved_passages, q_id=q_id)
+            answer = self.answer_with_transformers(
+                question, retrieved_passages, q_id=q_id
+            )
 
             return {
                 "question": question,
@@ -411,46 +415,48 @@ class QASystem:
 
         return {"accuracy": accuracy, "correct": correct, "total": total}
 
-    def evaluate_qa_with_graph_construction(self, dataset, triplets_per_question: Dict[str, List[Tuple[str, str, str]]]) -> Dict[str, float]:
+    def evaluate_qa_with_graph_construction(
+        self, dataset, triplets_per_question: Dict[str, List[Tuple[str, str, str]]]
+    ) -> Dict[str, float]:
         """
         Evaluate QA performance with graph construction for each question.
-        
+
         Args:
             dataset: Dataset with questions and ground truth answers
             triplets_per_question: Dictionary mapping question IDs to their triplets
-            
+
         Returns:
             Evaluation metrics
         """
         correct = 0
         total = 0
-        
+
         for sample in dataset:
             question = sample.get("question", "")
             ground_truth = sample.get("answer", "").strip().lower()
             q_id = sample.get("id", str(total))  # Use sample ID or fallback to index
-            
+
             if not question or not ground_truth:
                 continue
-                
+
             # Load graph for this specific question
             if q_id in triplets_per_question:
                 self.load_graph_for_passage(q_id, triplets_per_question[q_id])
             else:
                 logger.warning(f"No triplets found for q_id={q_id}")
                 continue
-            
+
             # Build graph and index for this specific question
             logger.info(f"Evaluating question {total + 1}/{len(dataset)} (q_id={q_id})")
             result = self.answer_question(question, q_id=q_id)
             predicted = result["answer"].strip().lower()
-            
+
             # Simple exact matching for evaluation
             if ground_truth in predicted or predicted in ground_truth:
                 correct += 1
-                
+
             total += 1
-            
+
         accuracy = correct / total if total > 0 else 0.0
-        
+
         return {"accuracy": accuracy, "correct": correct, "total": total}

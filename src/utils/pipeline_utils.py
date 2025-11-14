@@ -4,7 +4,7 @@ Contains common functions used by both text and JSON pipelines.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 import logging
 import json
 
@@ -94,3 +94,43 @@ def process_oie_results(
         else:
             logger.warning(f"Triplet index {idx} exceeds dataset length")
     return all_triplets_per_text
+
+
+def evaluate_qa_results(qa_results: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Evaluate QA results."""
+    correct = 0
+    total = 0
+    high_confidence_correct = 0
+    high_confidence_total = 0
+
+    for result in qa_results:
+        predicted = result.get("answer", "").strip().lower()
+        ground_truth = result.get("ground_truth_answer", "").strip().lower()
+        confidence = result.get("confidence", 0.0)
+
+        if ground_truth and predicted:
+            total += 1
+            # Simple matching - can be enhanced
+            if ground_truth in predicted or predicted in ground_truth:
+                correct += 1
+
+            if confidence > 0.7:
+                high_confidence_total += 1
+                if ground_truth in predicted or predicted in ground_truth:
+                    high_confidence_correct += 1
+
+    accuracy = correct / total if total > 0 else 0.0
+    high_confidence_accuracy = (
+        high_confidence_correct / high_confidence_total
+        if high_confidence_total > 0
+        else 0.0
+    )
+
+    return {
+        "accuracy": accuracy,
+        "high_confidence_accuracy": high_confidence_accuracy,
+        "total_questions": total,
+        "correct_answers": correct,
+        "high_confidence_total": high_confidence_total,
+        "high_confidence_correct": high_confidence_correct,
+    }

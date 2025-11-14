@@ -16,8 +16,8 @@ if str(ROOT_DIR) not in sys.path:
 
 from pipelines.pipeline import run_pipeline
 from pipelines.json_pipeline import run_json_pipeline
-from pipelines.schema_refiner import SchemaRefiner
-from core.encoder import Encoder
+from schema_definition import SchemaRefiner
+from triplet_extraction.encoder import Encoder
 from evaluation.qa_system import QASystem
 from config import (
     LOGGING_LEVEL,

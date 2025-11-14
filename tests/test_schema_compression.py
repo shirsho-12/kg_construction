@@ -10,16 +10,17 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
-from config import (
-    BASE_ENCODER_MODEL,
-    SD_FEW_SHOT_EXAMPLES_PATH,
-    SD_PROMPT_PATH,
-)
+from config import BASE_ENCODER_MODEL
 
-from core.schema_definer import SchemaDefiner
-from core.encoder import Encoder
+
+from schema_definition import SchemaRefiner, FaissSchemaCompressor
+from triplet_extraction import Encoder
 
 encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
+faiss_compressor = FaissSchemaCompressor(encoder=encoder)
+schema_refiner = SchemaRefiner(
+    faiss_compressor=faiss_compressor,
+)
 
 
 def create_test_schema():
@@ -64,22 +65,14 @@ def test_faiss_max_size_compression():
     print(f"Original schema has {original_count} relations")
 
     try:
-        # Initialize encoder and schema definer
-        schema_definer = SchemaDefiner(
-            model=encoder,
-            schema_prompt_path=SD_PROMPT_PATH,
-            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
-        )
-
         # Test different maximum sizes
         max_sizes = [5, 10, 15, 20]
 
         for max_size in max_sizes:
             print(f"\n--- Testing max_size = {max_size} ---")
-
-            compressed = schema_definer.compress_schema(
-                test_schema, method="faiss_max_size", max_size=max_size
-            )
+            schema_refiner.max_schema_size = max_size
+            schema_refiner.compression_method = "faiss_max_size"
+            compressed, mapping = schema_refiner.refine_schema(test_schema)
 
             compressed_count = len(compressed)
             reduction = original_count - compressed_count
@@ -102,6 +95,9 @@ def test_faiss_max_size_compression():
             print(
                 f"  Compressed relations: {list(compressed.keys())[:5]}{'...' if len(compressed) > 5 else ''}"
             )
+            # Show sample mapping entry
+            if mapping:
+                print(mapping)
 
         print("\n✓ FAISS max size compression test completed successfully!")
 
@@ -119,22 +115,14 @@ def test_faiss_ratio_compression():
     print(f"Original schema has {original_count} relations")
 
     try:
-        # Initialize encoder and schema definer
-        schema_definer = SchemaDefiner(
-            model=encoder,
-            schema_prompt_path=SD_PROMPT_PATH,
-            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
-        )
-
         # Test different compression ratios
         ratios = [0.3, 0.5, 0.7, 0.8]
 
         for ratio in ratios:
             print(f"\n--- Testing compression_ratio = {ratio} ({ratio*100:.0f}%) ---")
-
-            compressed = schema_definer.compress_schema(
-                test_schema, method="faiss_ratio", compression_ratio=ratio
-            )
+            schema_refiner.compression_method = "faiss_ratio"
+            schema_refiner.compression_ratio = ratio
+            compressed, mapping = schema_refiner.refine_schema(test_schema)
 
             compressed_count = len(compressed)
             target_size = int(original_count * ratio)
@@ -146,6 +134,8 @@ def test_faiss_ratio_compression():
             print(f"  Actual size: {compressed_count}")
             print(f"  Actual ratio: {actual_ratio:.3f} ({actual_ratio*100:.1f}%)")
             print(f"  Reduction: {reduction} relations")
+            print(f"  Mapping size: {len(mapping)} entries")
+            print(mapping)
 
             # Verify we achieved approximately the target ratio
             if abs(actual_ratio - ratio) <= 0.1:  # Allow 10% tolerance
@@ -189,23 +179,17 @@ def test_compression_quality():
     }
 
     try:
-        schema_definer = SchemaDefiner(
-            model=encoder,
-            schema_prompt_path=SD_PROMPT_PATH,
-            schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
-        )
-
         print(f"Original semantic groups: {len(semantic_test_schema)} relations")
 
         # Test with moderate compression
-        compressed = schema_definer.compress_schema(
-            semantic_test_schema, method="faiss_max_size", max_size=6
-        )
+        compressed, mapping = schema_refiner.refine_schema(semantic_test_schema)
 
         print(f"Compressed to: {len(compressed)} relations")
         print("Final relations:")
         for rel, defn in compressed.items():
             print(f"  - {rel}: {defn}")
+        for k, v in mapping.items():
+            print(f"    mapping: {k} <- {v}")
 
         # Should preserve at least one relation from each semantic group
         location_preserved = any(
