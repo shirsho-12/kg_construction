@@ -78,6 +78,8 @@ class Extractor:
     def _score_relation(self, relation: str) -> float:
         # Penalty for length
         relation = relation.replace("_", " ")
+        if len(relation.split()) == 0:
+            return 0.0
         length_penalty = 1.0 / len(relation.split())
 
         # Prioritize verbs and expressive words

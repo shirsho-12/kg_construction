@@ -81,9 +81,12 @@ class HotpotQADataset(BaseJSONDataset):
         """Get dataset statistics."""
         question_types = self.get_question_types()
         difficulty_levels = self.get_difficulty_levels()
-        avg_context_entities = sum(
-            len(sample.get("context", [])) for sample in self.data
-        ) / len(self.data)
+        try:
+            avg_context_entities = sum(
+                len(sample.get("context", [])) for sample in self.data
+            ) / len(self.data)
+        except ZeroDivisionError:
+            avg_context_entities = 0
 
         return {
             "total_samples": len(self.data),

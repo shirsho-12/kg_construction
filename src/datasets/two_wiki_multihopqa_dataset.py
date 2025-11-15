@@ -87,12 +87,16 @@ class TwoWikiMultiHopQADataset(BaseJSONDataset):
     def get_stats(self) -> Dict[str, Any]:
         """Get dataset statistics."""
         question_types = self.get_question_types()
-        avg_context_entities = sum(
-            len(sample.get("context", [])) for sample in self.data
-        ) / len(self.data)
-        avg_evidences = sum(
-            len(sample.get("evidences", [])) for sample in self.data
-        ) / len(self.data)
+        try:
+            avg_context_entities = sum(
+                len(sample.get("context", [])) for sample in self.data
+            ) / len(self.data)
+            avg_evidences = sum(
+                len(sample.get("evidences", [])) for sample in self.data
+            ) / len(self.data)
+        except ZeroDivisionError:
+            avg_context_entities = 0
+            avg_evidences = 0
 
         return {
             "total_samples": len(self.data),
