@@ -235,11 +235,22 @@ def run_json_pipeline(
                     context=entity_context,
                 )
     else:
-        with open(output_dir / "triplets.json", "r", encoding="utf-8") as f:
-            sample_triplets_map = json.load(f)  # key: text id, value: list of triplets
-        oie_triplets = load_triplets_from_file(output_dir / "triplets.json")
-        if use_synonyms:
-            synonyms = load_synonyms_from_file(output_dir / "synonyms.json")
+        if Path.exists(output_dir / "triplets.json"):
+            logger.info(
+                f"Loading pre-extracted triplets from {output_dir / 'triplets.json'}"
+            )
+            with open(output_dir / "triplets.json", "r", encoding="utf-8") as f:
+                sample_triplets_map = json.load(
+                    f
+                )  # key: text id, value: list of triplets
+            oie_triplets = load_triplets_from_file(output_dir / "triplets.json")
+            if use_synonyms:
+                synonyms = load_synonyms_from_file(output_dir / "synonyms.json")
+        else:
+            logger.error(
+                "No pre-extracted triplets found. Please run OIE extraction first."
+            )
+            return {}, {}
 
     schema_dct = {}
     if run_schema_definition_flag:
@@ -250,7 +261,7 @@ def run_json_pipeline(
                     dct["context"].values()
                 )  # Combine all entity contexts
             else:
-                input_text = dct['context']
+                input_text = dct["context"]
             if sample_triplets_map:
                 oie_triplets_for_sample = sample_triplets_map.get(dct["id"], [])
             else:
@@ -259,8 +270,19 @@ def run_json_pipeline(
             schema_dct[dct["id"]] = schema
             results_by_id[dct["id"]]["schema_definition"] = schema
     else:
-        with open(output_dir / "schema_definitions.json", "r", encoding="utf-8") as f:
-            schema_dct = json.load(f)
+        if Path.exists(output_dir / "schema_definitions.json"):
+            logger.info(
+                f"Loading pre-defined schemas from {output_dir / 'schema_definitions.json'}"
+            )
+            with open(
+                output_dir / "schema_definitions.json", "r", encoding="utf-8"
+            ) as f:
+                schema_dct = json.load(f)
+        else:
+            schema_dct = {}
+            logger.warning(
+                "No pre-defined schemas found. Schema definition step will be skipped."
+            )
 
     if run_compression_flag:
         logger.info("Running schema compression over defined schemas...")
@@ -292,7 +314,6 @@ def run_json_pipeline(
 
             if compressed_schema:
                 logger.info(f"Compressed to {len(compressed_schema)} relations")
-
 
             # Apply compression to triplets for this sample only
             if compressed_schema and compressed_schema != schema:
@@ -327,7 +348,14 @@ def run_json_pipeline(
             #                 sample_synonyms[key_str] = unique_vals
 
             # results_by_id[sample_id]["synonyms"] = sample_synonyms
-
+    else:
+        logger.info("Schema compression step skipped.")
+        for i in range(len(graph_dataset)):
+            sample = graph_dataset[i]
+            sample_id = sample.get("id", f"sample_{i}")
+            results_by_id[sample_id]["compressed_triplets"] = results_by_id[sample_id][
+                "extracted_triplets"
+            ]
     logger.info("Saving isolated results by _id...")
 
     # Save all results keyed by _id
