@@ -67,68 +67,66 @@ class SchemaRefiner:
             return original_schema, {}
 
         logger.info("Running schema refinement")
-        try:
-            original_count = len(original_schema)
-            logger.info(
-                f"Starting compression with {original_count} relations using '{self.compression_method}' method (threshold={self.compression_ratio})"
+        # try:
+        original_count = len(original_schema)
+        logger.info(
+            f"Starting compression with {original_count} relations using '{self.compression_method}' method (threshold={self.compression_ratio})"
+        )
+        if (
+            self.compression_method == "faiss_max_size"
+            and self.max_schema_size is not None
+        ):
+            compressed_schema, mapping = self.faiss_compressor.compress_by_max_size(
+                schema=original_schema,
+                max_size=self.max_schema_size,
+                merge_strategy=self.merge_strategy,
             )
-            if (
-                self.compression_method == "faiss_max_size"
-                and self.max_schema_size is not None
-            ):
-                compressed_schema, mapping = self.faiss_compressor.compress_by_max_size(
+        elif (
+            self.compression_method == "faiss_ratio"
+            and self.compression_ratio is not None
+        ):
+            compressed_schema, mapping = self.faiss_compressor.compress_by_ratio(
+                schema=original_schema,
+                compression_ratio=self.compression_ratio,
+                merge_strategy=self.merge_strategy,
+            )
+        elif self.compression_method == "faiss_similarity":
+            compressed_schema, mapping = (
+                self.faiss_compressor.compress_by_similarity_groups(
                     schema=original_schema,
-                    max_size=self.max_schema_size,
+                    similarity_threshold=self.similarity_threshold,
                     merge_strategy=self.merge_strategy,
                 )
-            elif (
-                self.compression_method == "faiss_ratio"
-                and self.compression_ratio is not None
-            ):
-                compressed_schema, mapping = self.faiss_compressor.compress_by_ratio(
-                    schema=original_schema,
-                    compression_ratio=self.compression_ratio,
-                    merge_strategy=self.merge_strategy,
-                )
-            elif self.compression_method == "faiss_similarity":
-                compressed_schema, mapping = (
-                    self.faiss_compressor.compress_by_similarity_groups(
-                        schema=original_schema,
-                        similarity_threshold=self.similarity_threshold,
-                        merge_strategy=self.merge_strategy,
-                    )
-                )
-            else:
-                raise ValueError(
-                    f"Unknown compression method: {self.compression_method}. Available methods: 'faiss_max_size', 'faiss_ratio', 'faiss_similarity'"
-                )
-
-            compressed_count = len(compressed_schema)
-            compression_ratio = (
-                compressed_count / original_count if original_count > 0 else 1.0
             )
+        else:
+            raise ValueError(
+                f"Unknown compression method: {self.compression_method}. Available methods: 'faiss_max_size', 'faiss_ratio', 'faiss_similarity'"
+            )
+
+        compressed_count = len(compressed_schema)
+        compression_ratio = (
+            compressed_count / original_count if original_count > 0 else 1.0
+        )
+        logger.info(
+            f"Compression completed: {original_count} -> {compressed_count} relations "
+            f"(ratio: {compression_ratio:.3f})"
+        )
+        if compressed_schema:
+            logger.info(f"Compressed to {len(compressed_schema)} relations")
+        # Log compression details
+        if compressed_count < original_count:
             logger.info(
-                f"Compression completed: {original_count} -> {compressed_count} relations "
-                f"(ratio: {compression_ratio:.3f})"
+                f"Successfully compressed schema by {original_count - compressed_count} relations"
             )
-            if compressed_schema:
-                logger.info(f"Compressed to {len(compressed_schema)} relations")
-            # Log compression details
-            if compressed_count < original_count:
-                logger.info(
-                    f"Successfully compressed schema by {original_count - compressed_count} relations"
-                )
-                compressed_relations = list(compressed_schema.keys())
-                original_relations = list(original_schema.keys())
-                removed_relations = set(original_relations) - set(compressed_relations)
-                logger.debug(
-                    f"Relations removed by compression: {list(removed_relations)}"
-                )
-            else:
-                logger.info("No compression occurred - relations were too dissimilar")
+            compressed_relations = list(compressed_schema.keys())
+            original_relations = list(original_schema.keys())
+            removed_relations = set(original_relations) - set(compressed_relations)
+            logger.debug(f"Relations removed by compression: {list(removed_relations)}")
+        else:
+            logger.info("No compression occurred - relations were too dissimilar")
 
-        except Exception as e:
-            logger.error(f"Error during schema compression: {e}")
+        # except Exception as e:
+        # logger.error(f"Error during schema compression: {e}")
         return compressed_schema, mapping
 
     def swap_relations_to_compressed(
