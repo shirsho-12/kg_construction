@@ -74,15 +74,20 @@ class FaissSchemaCompressor:
         current_definitions = definitions.copy()
         current_embeddings = embeddings.copy()
         merged_indices = set()
+        original_count = len(relations)
+        ideal_group_size = max(1, original_count // max_size)
 
         while len(current_relations) - len(merged_indices) > max_size:
             # Find the most similar pair
-            best_similarity = -1
+            best_score = -1
             best_pair = None
+            best_similarity = -1
 
             for i in range(len(current_relations)):
                 if i in merged_indices:
                     continue
+
+                size_i = len(relation_mapping.get(i, [current_relations[i]]))
 
                 # Search for most similar relation to current relation
                 query_embedding = current_embeddings[i : i + 1]
@@ -95,12 +100,21 @@ class FaissSchemaCompressor:
                 for result_idx, similarity in results:
                     if result_idx == i or result_idx in merged_indices:
                         continue
-                    if similarity > best_similarity:
+
+                    size_j = len(
+                        relation_mapping.get(
+                            result_idx, [current_relations[result_idx]]
+                        )
+                    )
+                    oversize_i = max(0, size_i - ideal_group_size)
+                    oversize_j = max(0, size_j - ideal_group_size)
+                    penalty = 0.05 * (oversize_i + oversize_j)
+                    adjusted_similarity = similarity - penalty
+
+                    if adjusted_similarity > best_score:
+                        best_score = adjusted_similarity
                         best_similarity = similarity
                         best_pair = (i, result_idx)
-                        break
-
-                if best_pair:
                     break
 
             if not best_pair:
@@ -353,14 +367,16 @@ class FaissSchemaCompressor:
                 json_start = output.index("```json") + len("```json")
                 json_end = output.index("```", json_start)
                 json_str = output[json_start:json_end].strip()
-                try:
-                    json_obj = json.loads(json_str)
-                    merged_relation = json_obj.get("Relation", "")
-                    merged_definition = json_obj.get("Definition", "")
-                except Exception as e:
-                    merged_relation = "ERROR"
-                    merged_definition = "ERROR"
-                    logger.error(f"Error parsing JSON from LLM output: {e}")
+            else:
+                json_str = output.strip()
+            try:
+                json_obj = json.loads(json_str)
+                merged_relation = json_obj.get("Relation", "")
+                merged_definition = json_obj.get("Definition", "")
+            except Exception as e:
+                merged_relation = "ERROR"
+                merged_definition = "ERROR"
+                logger.error(f"Error parsing JSON from LLM output: {e}")
             return merged_relation, merged_definition
         else:
             # Default: keep first relation
