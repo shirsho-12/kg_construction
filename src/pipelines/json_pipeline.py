@@ -303,14 +303,12 @@ def run_json_pipeline(
             extracted_triplets = results_by_id[sample_id]["extracted_triplets"]
             schema = results_by_id[sample_id]["schema_definition"]
             compressed_schema = {}
-            try:
-                compressed_schema, compression_map = schema_refiner.refine_schema(
-                    schema
-                )
-                results_by_id[sample_id]["compressed_schema"] = compressed_schema
-                results_by_id[sample_id]["compression_mapping"] = compression_map
-            except Exception as e:
-                logger.error(f"Error in schema compression for sample {sample_id}: {e}")
+            # try:
+            compressed_schema, compression_map = schema_refiner.refine_schema(schema)
+            results_by_id[sample_id]["compressed_schema"] = compressed_schema
+            results_by_id[sample_id]["compression_mapping"] = compression_map
+            # except Exception as e:
+            # logger.error(f"Error in schema compression for sample {sample_id}: {e}")
 
             if compressed_schema:
                 logger.info(f"Compressed to {len(compressed_schema)} relations")
