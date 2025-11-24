@@ -9,14 +9,13 @@ End-to-end pipeline:
 6) Entities and relations saved to JSON
 """
 from pathlib import Path
-from typing import List, Tuple, Dict
-import logging
+from typing import List, Tuple, Dict, Any
 from tqdm import tqdm
+import json
 
 from config import (
     BASE_ENCODER_MODEL,
     EXAMPLE_DATA_PATH_TEXT,
-    LOGGING_LEVEL,
     OIE_FEW_SHOT_EXAMPLES_PATH,
     OIE_PROMPT_PATH,
     OIE_SYNONYMS_FEW_SHOT_EXAMPLES_PATH,
@@ -27,7 +26,7 @@ from config import (
 from datasets import TextDataset
 from triplet_extraction.encoder import Encoder
 from triplet_extraction.oie import OIE
-from schema_definition.schema_definer import SchemaDefiner
+from schema_definition import SchemaDefiner, SchemaRefiner, FaissSchemaCompressor
 from torch.utils.data import DataLoader
 from utils.pipeline_utils import (
     setup_file_logging,
@@ -36,26 +35,27 @@ from utils.pipeline_utils import (
     process_oie_results,
 )
 
-logging.basicConfig(level=LOGGING_LEVEL)
-logger = logging.getLogger(__name__)
+from utils import (
+    logger,
+    load_triplets_from_file,
+    load_synonyms_from_file,
+    save_schema_definitions,
+)
+
+encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
 
 
-def run_pipeline(
-    data_path: Path,
-    output_dir: Path,
-    use_synonyms: bool = True,
-    compression_method: str = "faiss_similarity",
-    compression_threshold: float = 0.6,
-    compress_if_more_than: int = 3,
-):
-    output_dir.mkdir(parents=True, exist_ok=True)
-    setup_file_logging(output_dir)
+def run_oie(use_synonyms: bool, dataloader: DataLoader):
+    """
+    Run Open Information Extraction on the dataset.
 
-    # Track problematic cases
-    problematic_cases = []
+    Args:
+        use_synonyms: Whether to use synonym generation
+        dataloader: DataLoader containing text data
 
-    # Initialize components
-    encoder = Encoder(model_name_or_path=BASE_ENCODER_MODEL)
+    Returns:
+        Tuple of (oie_triplets, synonyms)
+    """
     if use_synonyms:
         oie = OIE(
             encoder=encoder,
@@ -70,30 +70,100 @@ def run_pipeline(
             few_shot_examples_file=OIE_FEW_SHOT_EXAMPLES_PATH,
             synonymy=False,
         )
+
+    try:
+        oie_triplets, synonyms = oie.run(dataloader)
+        return oie_triplets, synonyms
+    except Exception as e:
+        logger.error(f"Error running OIE over dataset: {e}")
+        return [], []
+
+
+def run_schema_definition(input_text: str, oie_triplets: List):
+    """
+    Run schema definition on the given text and triplets.
+
+    Args:
+        input_text: Input text for schema generation
+        oie_triplets: List of extracted triplets
+
+    Returns:
+        Generated schema dictionary
+    """
     schema_definer = SchemaDefiner(
         model=encoder,
         schema_prompt_path=SD_PROMPT_PATH,
         schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
     )
 
+    try:
+        schema = schema_definer.run(input_text, oie_triplets)
+        return schema
+    except Exception as e:
+        logger.error(f"Error in schema definition: {e}")
+        return {}
+
+
+def run_pipeline(
+    data_path: Path,
+    output_dir: Path,
+    use_synonyms: bool = True,
+    compression_method: str = "faiss_similarity",
+    compression_threshold: float = 0.6,
+    compress_if_more_than: int = 3,
+    run_oie_flag: bool = True,
+    run_schema_definition_flag: bool = True,
+    run_compression_flag: bool = True,
+):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    setup_file_logging(output_dir, "pipeline_errors.log")
+
+    # Track problematic cases
+    problematic_cases: List[Dict[str, Any]] = []
+
+    # Initialize dataset
     dataset = TextDataset(data_path=data_path, encoder=encoder)
     dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
 
-    # Batch OIE extraction without nested DataLoaders
-    oie_triplets, synonyms = oie.run(dataloader)
-    all_triplets_per_text = process_oie_results(
-        oie_triplets, dataset, problematic_cases
+    # Initialize schema definer
+    schema_definer = SchemaDefiner(
+        model=encoder,
+        schema_prompt_path=SD_PROMPT_PATH,
+        schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
     )
-    schema_definer.save_entities_relations_to_json(
-        all_triplets_per_text, output_dir / "triplets.json"
-    )
+    # Run OIE extraction if flag is set
+    oie_triplets = []
+    synonyms = []
+    if run_oie_flag:
+        logger.info("Running OIE extraction...")
+        oie_triplets, synonyms = run_oie(use_synonyms, dataloader)
+        all_triplets_per_text = process_oie_results(
+            oie_triplets, dataset, problematic_cases
+        )
+        with open(output_dir / "triplets.json", "w", encoding="utf-8") as f:
+            json.dump(all_triplets_per_text, f, indent=2, ensure_ascii=False)
 
-    # Save synonyms with de-duplication
-    if use_synonyms and synonyms:
-        save_synonyms(synonyms, output_dir / "synonyms.json")
+        # Save synonyms with de-duplication
+        if use_synonyms and synonyms:
+            save_synonyms(synonyms, output_dir / "synonyms.json")
+    else:
+        if Path.exists(output_dir / "triplets.json"):
+            logger.info(
+                f"Loading pre-extracted triplets from {output_dir / 'triplets.json'}"
+            )
+            all_triplets_per_text = load_triplets_from_file(
+                output_dir / "triplets.json"
+            )
+            if use_synonyms:
+                synonyms = load_synonyms_from_file(output_dir / "synonyms.json")
+        else:
+            logger.error(
+                "No pre-extracted triplets found. Please run OIE extraction first."
+            )
+            return
 
     # Collect all triplets and relations for unified schema generation
-    all_triplets: List[Tuple[str, str, str]] = []
+    all_triplets = []
     all_relations = set()
     text_triplets_map = []  # Store original triplets per text for later compression
 
@@ -118,58 +188,81 @@ def run_pipeline(
         all_triplets.extend(triplets)
 
     # Generate unified schema for all relations
-    logger.info("Generating unified schema for %d unique relations", len(all_relations))
-    try:
-        # Create dummy text with all relations for schema generation
-        dummy_text = "Schema generation for all extracted relations"
-        dummy_triplets = [["dummy", rel, "dummy"] for rel in all_relations]
+    unified_schema = {}
+    if run_schema_definition_flag:
+        logger.info(
+            "Generating unified schema for %d unique relations", len(all_relations)
+        )
+        try:
+            # Create dummy text with all relations for schema generation
+            dummy_text = "Schema generation for all extracted relations"
+            dummy_triplets = [["dummy", rel, "dummy"] for rel in all_relations]
 
-        schema_list = schema_definer.run(dummy_text, [dummy_triplets])
+            unified_schema = run_schema_definition(dummy_text, dummy_triplets)
 
-        if not schema_list or not schema_list[0]:
-            logger.warning("Failed to generate unified schema")
+            if not unified_schema:
+                logger.warning("Failed to generate unified schema")
+            else:
+                logger.info(
+                    "Generated unified schema with %d relations", len(unified_schema)
+                )
+                with open(
+                    output_dir / "schema_definitions.json", "w", encoding="utf-8"
+                ) as f:
+                    json.dump(
+                        {"schema": unified_schema}, f, indent=2, ensure_ascii=False
+                    )
+
+        except Exception as e:
+            logger.error("Unified schema generation failed: %s", e)
             unified_schema = {}
-        else:
-            unified_schema = schema_list[0]
+    else:
+        if Path.exists(output_dir / "schema_definitions.json"):
             logger.info(
-                "Generated unified schema with %d relations", len(unified_schema)
+                f"Loading pre-defined schemas from {output_dir / 'schema_definitions.json'}"
             )
-
-    except Exception as e:
-        logger.error("Unified schema generation failed: %s", e)
-        unified_schema = {}
+            with open(
+                output_dir / "schema_definitions.json", "r", encoding="utf-8"
+            ) as f:
+                schema_data = json.load(f)
+                unified_schema = schema_data.get("schema", {})
+        else:
+            logger.warning(
+                "No pre-defined schemas found. Schema definition step will be skipped."
+            )
 
     # Compress unified schema if it exceeds threshold
     compressed_schema = unified_schema
     original_to_compressed = {}
 
-    if unified_schema and len(unified_schema) > compress_if_more_than:
+    if (
+        run_compression_flag
+        # and unified_schema
+        # and len(unified_schema) > compress_if_more_than
+    ):
+        faiss_compressor = FaissSchemaCompressor(encoder=encoder)
+        schema_refiner = SchemaRefiner(
+            faiss_compressor=faiss_compressor,
+            compression_method=compression_method,
+            compression_ratio=compression_threshold,
+            compress_if_more_than=compress_if_more_than,
+        )
         logger.info("Compressing schema from %d relations", len(unified_schema))
         try:
-            compressed_schema = schema_definer.compress_schema(
-                unified_schema,
-                method=compression_method,
-                threshold=compression_threshold,
-                max_size=None,
-                compression_ratio=None,
+            compressed_schema, compression_map = schema_refiner.refine_schema(
+                unified_schema
             )
 
             if compressed_schema:
-                logger.info("Compressed to %d relations", len(compressed_schema))
-                # Build mapping from original to compressed relations
-                for orig_rel in unified_schema.keys():
-                    # Find the best compressed match (simple heuristic)
-                    best_match = orig_rel  # Default to original
-                    for comp_rel in compressed_schema.keys():
-                        # Simple matching - could use embedding similarity
-                        if (
-                            orig_rel.lower() in comp_rel.lower()
-                            or comp_rel.lower() in orig_rel.lower()
-                        ):
-                            best_match = comp_rel
-                            break
-                    original_to_compressed[orig_rel] = best_match
+                logger.info(f"Compressed to {len(compressed_schema)} relations")
+
+            # Apply compression to triplets for this sample only
+            if compressed_schema and compressed_schema != unified_schema:
+                final_triplets = schema_refiner.swap_relations_to_compressed(
+                    all_triplets, compression_map
+                )
             else:
+                final_triplets = all_triplets
                 logger.warning("Compression returned empty schema")
                 compressed_schema = unified_schema
 
@@ -177,59 +270,50 @@ def run_pipeline(
             logger.error("Schema compression failed: %s", e)
             compressed_schema = unified_schema
     else:
-        logger.info(
-            "Schema has %d relations (<= %d); skipping compression",
-            len(unified_schema),
-            compress_if_more_than,
-        )
-
-    # Apply compression to all triplets
-    final_compressed_triplets = []
-    for text, triplets, text_relations in text_triplets_map:
-        compressed_triplets = []
-        for triplet in triplets:
-            if isinstance(triplet, str):
-                parts = triplet.split("#SEP")
-                if len(parts) == 3:
-                    subj, rel, obj = parts
-                    new_rel = original_to_compressed.get(rel, rel)
-                    compressed_triplets.append((subj, new_rel, obj))
-            elif isinstance(triplet, (list, tuple)) and len(triplet) == 3:
-                subj, rel, obj = triplet
-                new_rel = original_to_compressed.get(rel, rel)
-                compressed_triplets.append((subj, new_rel, obj))
-        final_compressed_triplets.extend(compressed_triplets)
-
-    # 5) Save original triplets
-    original_output_path = output_dir / "triplets.json"
-    schema_definer.save_entities_relations_to_json(all_triplets, original_output_path)
+        if not run_compression_flag:
+            logger.info("Schema compression step skipped.")
+        else:
+            logger.info(
+                "Schema has %d relations (<= %d); skipping compression",
+                len(unified_schema),
+                compress_if_more_than,
+            )
 
     # 6) Save compressed triplets
     compressed_output_path = output_dir / "triplets_compressed.json"
-    schema_definer.save_entities_relations_to_json(
-        final_compressed_triplets, compressed_output_path
-    )
+    with open(compressed_output_path, "w", encoding="utf-8") as f:
+        json.dump(final_triplets, f, indent=2, ensure_ascii=False)
 
     logger.info(
         "Pipeline complete. Saved %d original triplets to %s",
         len(all_triplets),
-        original_output_path,
+        output_dir / "triplets.json",
     )
     logger.info(
         "Saved %d compressed triplets to %s",
-        len(final_compressed_triplets),
+        len(final_triplets),
         compressed_output_path,
     )
 
     # 7) Save unified schema
     unified_schema_path = output_dir / "schema_definitions.json"
-    schema_definer.save_schema_definitions([unified_schema], unified_schema_path)
+    save_schema_definitions([{"schema": unified_schema}], unified_schema_path)
 
     # 8) Save compression outcomes
     compression_path = output_dir / "compression_outcomes.json"
-    schema_definer.save_compression_outcomes(
-        [unified_schema], [compressed_schema], compression_method, compression_path
-    )
+    if run_compression_flag:
+        try:
+            compression_data = {
+                "original_schema": unified_schema,
+                "compressed_schema": compressed_schema,
+                "compression_method": compression_method,
+                "compression_threshold": compression_threshold,
+                "original_to_compressed": original_to_compressed,
+            }
+            with open(compression_path, "w", encoding="utf-8") as f:
+                json.dump(compression_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Failed to save compression outcomes: {e}")
 
     # 9) Save problematic cases report
     if problematic_cases:
@@ -240,6 +324,7 @@ def run_pipeline(
 
 
 if __name__ == "__main__":
+    # Run the pipeline
     run_pipeline(
         data_path=EXAMPLE_DATA_PATH_TEXT,
         output_dir=Path.cwd()
@@ -249,4 +334,7 @@ if __name__ == "__main__":
         compression_method="faiss_similarity",
         compression_threshold=0.8,
         compress_if_more_than=30,
+        run_oie_flag=True,
+        run_schema_definition_flag=True,
+        run_compression_flag=True,
     )
