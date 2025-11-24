@@ -125,12 +125,6 @@ def run_pipeline(
     dataset = TextDataset(data_path=data_path, encoder=encoder)
     dataloader = DataLoader(dataset, batch_size=4, shuffle=False)
 
-    # Initialize schema definer
-    schema_definer = SchemaDefiner(
-        model=encoder,
-        schema_prompt_path=SD_PROMPT_PATH,
-        schema_few_shot_examples_path=SD_FEW_SHOT_EXAMPLES_PATH,
-    )
     # Run OIE extraction if flag is set
     oie_triplets = []
     synonyms = []
@@ -194,11 +188,16 @@ def run_pipeline(
             "Generating unified schema for %d unique relations", len(all_relations)
         )
         try:
-            # Create dummy text with all relations for schema generation
-            dummy_text = "Schema generation for all extracted relations"
-            dummy_triplets = [["dummy", rel, "dummy"] for rel in all_relations]
-
-            unified_schema = run_schema_definition(dummy_text, dummy_triplets)
+            for text, triplets, text_relations in tqdm(
+                text_triplets_map, desc="Schema Generation"
+            ):
+                if not triplets:
+                    continue
+                schema = run_schema_definition(text, triplets)
+                if schema:
+                    for relation, definition in schema.items():
+                        if relation not in unified_schema:
+                            unified_schema[relation] = definition
 
             if not unified_schema:
                 logger.warning("Failed to generate unified schema")
