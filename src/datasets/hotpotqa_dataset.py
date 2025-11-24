@@ -37,7 +37,7 @@ class HotpotQADataset(BaseJSONDataset):
         entity_sentences = self._process_context(sample.get("context", []))
 
         return {
-            "_id": base_fields["_id"],
+            "id": base_fields["id"],
             "type": base_fields["type"],
             "level": sample.get("level", ""),
             "context": entity_sentences,  # entity: sentences format
@@ -61,7 +61,7 @@ class HotpotQADataset(BaseJSONDataset):
                     context_parts.append(f"{entity_name}: {context_text}")
 
         return {
-            "_id": base_fields["_id"],
+            "id": base_fields["id"],
             "type": base_fields["type"],
             "level": sample.get("level", ""),
             "context": " ".join(context_parts),

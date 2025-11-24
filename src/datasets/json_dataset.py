@@ -78,7 +78,7 @@ class JSONDataset(Dataset):
                 context_parts.append(f"{entity_name}: {' '.join(sentences)}")
 
         return {
-            "id": sample.get("_id"),
+            "id": sample.get("_id", ""),
             "type": sample.get("type"),
             "context": " ".join(context_parts),
             "question": sample.get("question", ""),

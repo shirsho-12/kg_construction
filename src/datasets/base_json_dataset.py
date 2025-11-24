@@ -52,7 +52,7 @@ class BaseJSONDataset(Dataset):
     def _get_base_fields(self, sample: Dict[str, Any]) -> Dict[str, Any]:
         """Extract common fields from sample."""
         return {
-            "_id": sample.get("_id"),
+            "id": sample.get("_id"),
             "type": sample.get("type", ""),
             "question": sample.get("question", ""),
             "answer": sample.get("answer", ""),
@@ -90,12 +90,12 @@ class BaseJSONDataset(Dataset):
         raise NotImplementedError("Subclasses must implement _format_for_qa")
 
     def get_sample_by_id(self, sample_id: str) -> Optional[Dict[str, Any]]:
-        """Get sample by its _id field."""
+        """Get sample by its id field."""
         for sample in self.data:
-            if sample.get("_id") == sample_id:
+            if sample.get("id") == sample_id:
                 return sample
         return None
 
     def get_all_ids(self) -> List[str]:
-        """Get all _id values in the dataset."""
-        return [sample.get("_id", f"sample_{i}") for i, sample in enumerate(self.data)]
+        """Get all id values in the dataset."""
+        return [sample.get("id", f"sample_{i}") for i, sample in enumerate(self.data)]

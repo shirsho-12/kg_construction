@@ -37,7 +37,7 @@ class TwoWikiMultiHopQADataset(BaseJSONDataset):
         entity_sentences = self._process_context(sample.get("context", []))
 
         return {
-            "_id": base_fields["_id"],
+            "id": base_fields["id"],
             "type": base_fields["type"],
             "context": entity_sentences,  # entity: sentences format
             "question": base_fields["question"],
@@ -60,7 +60,7 @@ class TwoWikiMultiHopQADataset(BaseJSONDataset):
                     context_parts.append(f"{entity_name}: {context_text}")
 
         return {
-            "_id": base_fields["_id"],
+            "id": base_fields["_id"],
             "type": base_fields["type"],
             "context": " ".join(context_parts),
             "question": base_fields["question"],
