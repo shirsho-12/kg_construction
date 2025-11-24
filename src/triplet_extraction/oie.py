@@ -68,8 +68,8 @@ class OIE:
                 )
                 if isinstance(result, tuple) and len(result) == 2:
                     oie_triplet, oie_synonym = result
-                    logger.debug(f"Extracted triplet: {oie_triplet}")
-                    logger.debug(f"Extracted synonyms: {oie_synonym}")
+                    # logger.debug(f"Extracted triplet: {oie_triplet}")
+                    # logger.debug(f"Extracted synonyms: {oie_synonym}")
                     oie_synonyms.append(oie_synonym)
                     oie_triplets.extend(
                         oie_triplet if isinstance(oie_triplet, list) else []

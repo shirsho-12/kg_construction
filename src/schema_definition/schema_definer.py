@@ -16,9 +16,9 @@ class SchemaDefiner:
         self.schema_prompt = open(schema_prompt_path).read()
         self.schema_few_shot_examples = open(schema_few_shot_examples_path).read()
         self.max_rel_length = max_rel_length
-        logger.debug(
-            "SchemaDefiner initialized with schema prompt path: %s", schema_prompt_path
-        )
+        # logger.debug(
+        #     "SchemaDefiner initialized with schema prompt path: %s", schema_prompt_path
+        # )
 
     def run(self, input_text: str, oie_triplets: list):
         logger.debug("Defining schema for input text: %s", input_text)
@@ -29,7 +29,7 @@ class SchemaDefiner:
             relations=relations_list,
             triples=oie_triplets,
         )
-        logger.debug("Filled schema prompt: %s", filled_prompt)
+        # logger.debug("Filled schema prompt: %s", filled_prompt)
         schema = self.model.generate_completion(
             [{"role": "user", "content": filled_prompt}], answer_prefix="OUTPUT::"
         )

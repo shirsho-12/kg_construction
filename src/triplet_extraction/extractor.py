@@ -32,11 +32,11 @@ class Extractor:
             }
         )
         messages = [{"role": "user", "content": filled_prompt}]
-        logger.debug("Filled prompt: %s", filled_prompt)
+        # logger.debug("Filled prompt: %s", filled_prompt)
         completion = self.encoder.generate_completion(
             messages, answer_prefix="Triplets: "
         )
-        logger.debug("Completion received: %s", completion)
+        # logger.debug("Completion received: %s", completion)
         return self.parse_triplets(completion[0], synonyms=synonyms)
 
     def extract_with_synonyms(
@@ -146,9 +146,9 @@ class Extractor:
                         head, tail = elements[0], elements[-1]
                         for middle in elements[1:-1]:
                             collected_triples.append([head, middle, tail])
-                            logger.debug(
-                                "Collected synonym triplet: %s", [head, middle, tail]
-                            )
+                            # logger.debug(
+                            #     "Collected synonym triplet: %s", [head, middle, tail]
+                            # )
                     elif len(elements) > 0:
                         # Handle malformed but non-empty case
                         collected_triples.append(elements)
@@ -167,7 +167,7 @@ class Extractor:
         prompt_template: str,
         few_shot_examples: Optional[str] = None,
     ) -> Union[List[Tuple[str]], List[List[Tuple[str]]]]:
-        logger.debug("Running single extraction for input text.")
+        # logger.debug("Running single extraction for input text.")
         return self.extract(
             input_text, prompt_template, few_shot_examples=few_shot_examples
         )
